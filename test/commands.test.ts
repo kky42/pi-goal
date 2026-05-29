@@ -69,7 +69,20 @@ test("/goal objective creates the goal and requests scheduler continuation", asy
   await handleGoalCommand(harness.pi, harness.host, "ship the feature", harness.ctx);
 
   assert.equal(harness.goal?.objective, "ship the feature");
-  assert.equal(harness.notifications.at(-1), "Goal set.");
+  const notification = harness.notifications.at(-1);
+  assert.ok(notification);
+  const [banner, ...summaryLines] = notification.split("\n");
+  assert.equal(banner, "\x1b[38;5;220mGoal set.\x1b[39m");
+  assert.equal(
+    summaryLines.join("\n"),
+    [
+      "Status: active",
+      "Objective: ship the feature",
+      "Time used: 0s",
+      "Tokens used: 0",
+      "Hint: /goal pause, /goal clear",
+    ].join("\n"),
+  );
   assert.equal(harness.continuationRequests, 1);
 });
 

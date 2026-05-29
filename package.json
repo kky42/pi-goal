@@ -1,9 +1,9 @@
 {
-  "name": "pi-codex-goal",
-  "version": "0.1.15",
+  "name": "@kky42/pi-goal",
+  "version": "1.0.0",
   "description": "Codex-style goal tracking and continuation for pi.",
   "type": "module",
-  "author": "Mitch Fultz (https://github.com/fitchmultz)",
+  "author": "kky42",
   "license": "MIT",
   "main": "src/index.ts",
   "files": [
@@ -22,12 +22,12 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/fitchmultz/pi-codex-goal.git"
+    "url": "git+https://github.com/kky42/pi-goal.git"
   },
   "bugs": {
-    "url": "https://github.com/fitchmultz/pi-codex-goal/issues"
+    "url": "https://github.com/kky42/pi-goal/issues"
   },
-  "homepage": "https://github.com/fitchmultz/pi-codex-goal#readme",
+  "homepage": "https://github.com/kky42/pi-goal#readme",
   "pi": {
     "extensions": [
       "./src/index.ts"
@@ -65,6 +65,9 @@
   },
   "engines": {
     "node": ">=22.19.0 <27"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "packageManager": "npm@11.0.0"
 }

@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 1.0.0 - 2026-05-30
+
+- Renames the public package to `@kky42/pi-goal` for npm and pi package installs.
+- Aligns goal initialization, continuation, blocked handling, prompt cache behavior, and tool-facing goal output with the Codex-style goal contract.
+- Refreshes the README around installation, usage, and the Pi-Goal vs. Codex Goal comparison for the public 1.0.0 release.
+
 ## 0.1.15 - 2026-05-27
 
 - Refactors the goal runtime monolith into focused modules for clearer lifecycle ownership, event handling, and continuation orchestration.

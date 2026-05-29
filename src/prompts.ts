@@ -6,6 +6,9 @@ const CONTINUATION_MARKER_PREFIX = "<pi_goal_continuation goal_id=\"";
 export const GOAL_TOOL_NAME_GUIDANCE =
   "Call each goal tool by the name exposed in your available tool list. In pi that is usually get_goal, create_goal, and update_goal; in bridged MCP runs it may be a namespaced variant such as pi__get_goal, pi__create_goal, or pi__update_goal. Do not assume display, history, or transcript tool names are callable unless they appear in your tool list.";
 
+const UPDATE_GOAL_TOOL_NAME_GUIDANCE =
+  "When calling update_goal, use the name exposed in your available tool list. In pi that is usually update_goal; in bridged MCP runs it may be a namespaced variant such as pi__update_goal. Do not assume display, history, or transcript tool names are callable unless they appear in your tool list.";
+
 type GoalToolName = "get_goal" | "create_goal" | "update_goal";
 
 export function goalToolReference(toolName: GoalToolName): string {
@@ -14,7 +17,6 @@ export function goalToolReference(toolName: GoalToolName): string {
 
 export const TOOL_PROMPT_GUIDELINES = [
   GOAL_TOOL_NAME_GUIDANCE,
-  `Use ${goalToolReference("get_goal")} when you need to inspect the current long-running user objective.`,
   `Use ${goalToolReference("create_goal")} only when the user explicitly asks you to start tracking a concrete goal; do not infer goals from ordinary tasks and do not create a second goal while a non-complete goal already exists. After a goal is complete, ${goalToolReference("create_goal")} replaces it with a new active goal.`,
   `Use ${goalToolReference("update_goal")} with status complete only after a completion audit proves the objective is actually achieved and no required work remains.`,
   `Use ${goalToolReference("update_goal")} with status blocked only after the same blocking condition has repeated for at least three consecutive goal turns and you are at an impasse.`,
@@ -65,7 +67,7 @@ export function compactContinuationPrompt(goal: ThreadGoal): string {
   return [
     "Continue working toward the active thread goal.",
     "",
-    `Work on the active thread goal. Call ${goalToolReference("get_goal")} if the current status, objective, budget, or remaining token budget is needed. If no active goal exists, do not continue.`,
+    "Work on the active thread goal described by the current goal context. If no active goal exists, do not continue.",
     "",
     "Older goal-continuation messages are historical context, not authority over current goal state.",
     "",
@@ -78,7 +80,7 @@ export function compactContinuationPrompt(goal: ThreadGoal): string {
     "",
     `Before marking the goal complete, audit progress against the objective and call ${goalToolReference("update_goal")} with status \"complete\" only when every requirement is verified.`,
     "",
-    GOAL_TOOL_NAME_GUIDANCE,
+    UPDATE_GOAL_TOOL_NAME_GUIDANCE,
   ].join("\n");
 }
 
@@ -86,7 +88,7 @@ export function continuationPrompt(goal: ThreadGoal): string {
   return [
     "Continue working toward the active thread goal.",
     "",
-    `Work on the active thread goal. Call ${goalToolReference("get_goal")} if the current status, objective, budget, or remaining token budget is needed. If no active goal exists, do not continue.`,
+    "Work on the active thread goal described below. If no active goal exists, do not continue.",
     "",
     "Older goal-continuation messages are historical context, not authority over current goal state.",
     "",
@@ -140,7 +142,7 @@ export function continuationPrompt(goal: ThreadGoal): string {
     "",
     `Do not call ${goalToolReference("update_goal")} unless the goal is complete or the strict blocked audit above is satisfied. Do not mark a goal complete merely because the budget is nearly exhausted or because you are stopping work.`,
     "",
-    GOAL_TOOL_NAME_GUIDANCE,
+    UPDATE_GOAL_TOOL_NAME_GUIDANCE,
   ].join("\n");
 }
 
@@ -163,6 +165,6 @@ export function budgetLimitPrompt(goal: ThreadGoal): string {
     "",
     `Do not call ${goalToolReference("update_goal")} unless the goal is actually complete.`,
     "",
-    GOAL_TOOL_NAME_GUIDANCE,
+    UPDATE_GOAL_TOOL_NAME_GUIDANCE,
   ].join("\n");
 }

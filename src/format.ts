@@ -12,9 +12,9 @@ export interface GoalToolRecord {
   status: GoalStatus;
   tokenBudget: number | null;
   tokensUsed: number;
-  timeUsedSeconds: number;
-  createdAt: number;
-  updatedAt: number;
+  timeUsed: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface GoalToolResponse {
@@ -25,21 +25,28 @@ export interface GoalToolResponse {
 
 export function formatDuration(seconds: number): string {
   const normalized = Math.max(0, Math.trunc(seconds));
-  const days = Math.floor(normalized / 86_400);
-  const hours = Math.floor((normalized % 86_400) / 3_600);
+  const hours = Math.floor(normalized / 3_600);
   const minutes = Math.floor((normalized % 3_600) / 60);
   const remainingSeconds = normalized % 60;
 
-  if (days > 0) {
-    return `${days}d ${hours}h ${minutes}m`;
-  }
   if (hours > 0) {
-    return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
+    return `${hours}h ${minutes}m ${remainingSeconds}s`;
   }
   if (minutes > 0) {
-    return `${minutes}m`;
+    return `${minutes}m ${remainingSeconds}s`;
   }
   return `${remainingSeconds}s`;
+}
+
+function twoDigit(value: number): string {
+  return String(value).padStart(2, "0");
+}
+
+export function formatLocalTimestamp(unixSeconds: number): string {
+  const date = new Date(Math.max(0, Math.trunc(unixSeconds)) * 1000);
+  const day = `${date.getFullYear()}-${twoDigit(date.getMonth() + 1)}-${twoDigit(date.getDate())}`;
+  const time = `${twoDigit(date.getHours())}-${twoDigit(date.getMinutes())}-${twoDigit(date.getSeconds())}`;
+  return `${day} ${time}`;
 }
 
 export function formatInteger(value: number): string {
@@ -178,9 +185,9 @@ export function toToolGoal(goal: ThreadGoal): GoalToolRecord {
     status: goal.status,
     tokenBudget: goal.tokenBudget,
     tokensUsed: goal.usage.tokensUsed,
-    timeUsedSeconds: goal.usage.activeSeconds,
-    createdAt: goal.createdAt,
-    updatedAt: goal.updatedAt,
+    timeUsed: formatDuration(goal.usage.activeSeconds),
+    createdAt: formatLocalTimestamp(goal.createdAt),
+    updatedAt: formatLocalTimestamp(goal.updatedAt),
   };
 }
 

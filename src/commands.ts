@@ -12,6 +12,7 @@ export interface CommandHost {
 }
 
 const COMMANDS = ["pause", "resume", "clear"] as const;
+const GOLDEN_SET_BANNER = "\x1b[38;5;220mGoal set.\x1b[39m";
 
 export type GoalCommandPi = Pick<ExtensionAPI, "registerCommand">;
 
@@ -89,7 +90,7 @@ export async function handleGoalCommand(
     return;
   }
   host.setGoal(result.goal, "command", ctx);
-  ctx.ui.notify(result.message);
+  ctx.ui.notify([GOLDEN_SET_BANNER, formatGoalSummary(result.goal)].join("\n"));
   host.requestContinuation(ctx);
 }
 

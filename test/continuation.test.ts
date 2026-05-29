@@ -259,8 +259,12 @@ test("goal tools return Codex-shaped response details", async () => {
     token_budget: 20,
   })) as { content: Array<{ type: "text"; text: string }>; details: Record<string, unknown> };
 
-  assert.equal((created.details.goal as { objective?: string }).objective, "ship it");
-  assert.equal((created.details.goal as { tokenBudget?: number }).tokenBudget, 20);
+  const createdGoal = created.details.goal as Record<string, unknown>;
+  assert.equal(createdGoal.objective, "ship it");
+  assert.equal(createdGoal.tokenBudget, 20);
+  assert.equal(createdGoal.timeUsed, "0s");
+  assert.match(String(createdGoal.createdAt), /^\d{4}-\d{2}-\d{2} \d{2}-\d{2}-\d{2}$/);
+  assert.match(String(createdGoal.updatedAt), /^\d{4}-\d{2}-\d{2} \d{2}-\d{2}-\d{2}$/);
   assert.equal(created.details.remainingTokens, 20);
   assert.equal(created.details.completionBudgetReport, null);
   assert.deepEqual(JSON.parse(created.content[0]?.text ?? ""), {
@@ -268,7 +272,8 @@ test("goal tools return Codex-shaped response details", async () => {
     remainingTokens: 20,
     completionBudgetReport: null,
   });
-  assert.equal("goalId" in (created.details.goal as Record<string, unknown>), false);
+  assert.equal("goalId" in createdGoal, false);
+  assert.equal("timeUsedSeconds" in createdGoal, false);
 
   const blocked = (await harness.runTool("update_goal", { status: "blocked" })) as {
     details: Record<string, unknown>;
@@ -456,7 +461,9 @@ test("auto-queued continuations use the Codex-style objective prompt without vis
   assert.match(content, /<objective>\nship it\n<\/objective>/);
   assert.doesNotMatch(content, /<pi_goal_continuation/);
   assert.doesNotMatch(content, new RegExp(String(harness.snapshot().goal?.goalId)));
-  assert.match(content, /get_goal/);
+  assert.doesNotMatch(content, /get_goal/);
+  assert.doesNotMatch(content, /create_goal/);
+  assert.match(content, /update_goal/);
 });
 
 test("session compaction queues continuation for active goals after length stops", async () => {

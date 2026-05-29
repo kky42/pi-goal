@@ -22,7 +22,7 @@ test("tool prompt guidelines include exposed and namespaced goal tool guidance",
   assert.equal(goalToolReference("update_goal"), "update_goal (or the exposed namespaced equivalent, such as pi__update_goal)");
 
   const combined = TOOL_PROMPT_GUIDELINES.join("\n");
-  assert.match(combined, /get_goal \(or the exposed namespaced equivalent, such as pi__get_goal\)/);
+  assert.doesNotMatch(combined, /Use get_goal/);
   assert.match(combined, /create_goal \(or the exposed namespaced equivalent, such as pi__create_goal\)/);
   assert.match(combined, /update_goal \(or the exposed namespaced equivalent, such as pi__update_goal\)/);
 });
@@ -42,7 +42,11 @@ test("continuation prompts do not expose goal ids or legacy runnable markers", (
   assert.doesNotMatch(full, new RegExp(created.goalId));
   assert.doesNotMatch(compact, /<objective>/);
   assert.match(full, /<objective>\nship it\n<\/objective>/);
-  assert.match(compact, /get_goal/);
+  assert.match(compact, /Work on the active thread goal described by the current goal context/);
+  assert.doesNotMatch(compact, /Call .*get_goal.*current status/);
+  assert.doesNotMatch(full, /Call .*get_goal.*current status/);
+  assert.doesNotMatch(compact, /get_goal/);
+  assert.doesNotMatch(full, /get_goal/);
   assert.ok(compact.length < full.length);
 });
 
@@ -64,6 +68,8 @@ test("continuation and budget-limit prompts reference exposed goal-completion to
   for (const prompt of [continuation, budget]) {
     assert.match(prompt, /update_goal \(or the exposed namespaced equivalent, such as pi__update_goal\)/);
     assert.match(prompt, /pi__update_goal/);
+    assert.doesNotMatch(prompt, /get_goal/);
+    assert.doesNotMatch(prompt, /create_goal/);
     assert.match(prompt, /Do not assume display, history, or transcript tool names are callable/);
   }
 });
