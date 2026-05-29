@@ -263,8 +263,8 @@ test("goal tools return Codex-shaped response details", async () => {
   assert.equal(createdGoal.objective, "ship it");
   assert.equal(createdGoal.tokenBudget, 20);
   assert.equal(createdGoal.timeUsed, "0s");
-  assert.match(String(createdGoal.createdAt), /^\d{4}-\d{2}-\d{2} \d{2}-\d{2}-\d{2}$/);
-  assert.match(String(createdGoal.updatedAt), /^\d{4}-\d{2}-\d{2} \d{2}-\d{2}-\d{2}$/);
+  assert.match(String(createdGoal.createdAt), /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/);
+  assert.match(String(createdGoal.updatedAt), /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/);
   assert.equal(created.details.remainingTokens, 20);
   assert.equal(created.details.completionBudgetReport, null);
   assert.deepEqual(JSON.parse(created.content[0]?.text ?? ""), {

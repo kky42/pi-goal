@@ -139,7 +139,7 @@ test("formatters produce Codex-style compact summaries", () => {
   assert.equal(formatDuration(32), "32s");
   assert.equal(formatDuration(92), "1m 32s");
   assert.equal(formatDuration(162_132), "45h 2m 12s");
-  assert.match(formatLocalTimestamp(0), /^\d{4}-\d{2}-\d{2} \d{2}-\d{2}-\d{2}$/);
+  assert.match(formatLocalTimestamp(0), /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/);
   assert.match(formatGoalSummary(created), /Objective: finish/);
   assert.match(formatGoalSummary(created), /Tokens used: 0/);
   assert.match(formatGoalSummary(created), /Token budget: 10/);

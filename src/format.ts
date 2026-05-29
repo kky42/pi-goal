@@ -45,7 +45,7 @@ function twoDigit(value: number): string {
 export function formatLocalTimestamp(unixSeconds: number): string {
   const date = new Date(Math.max(0, Math.trunc(unixSeconds)) * 1000);
   const day = `${date.getFullYear()}-${twoDigit(date.getMonth() + 1)}-${twoDigit(date.getDate())}`;
-  const time = `${twoDigit(date.getHours())}-${twoDigit(date.getMinutes())}-${twoDigit(date.getSeconds())}`;
+  const time = `${twoDigit(date.getHours())}:${twoDigit(date.getMinutes())}:${twoDigit(date.getSeconds())}`;
   return `${day} ${time}`;
 }
 
