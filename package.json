@@ -1,12 +1,14 @@
 {
   "name": "@kky42/pi-goal",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Codex-style goal tracking and continuation for pi.",
   "type": "module",
   "author": "kky42",
   "license": "MIT",
-  "main": "src/index.ts",
+  "main": "./index.ts",
+  "exports": "./index.ts",
   "files": [
+    "index.ts",
     "src",
     "README.md",
     "CHANGELOG.md",
@@ -30,7 +32,7 @@
   "homepage": "https://github.com/kky42/pi-goal#readme",
   "pi": {
     "extensions": [
-      "./src/index.ts"
+      "./index.ts"
     ]
   },
   "scripts": {

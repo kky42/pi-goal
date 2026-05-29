@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 1.0.1 - 2026-05-30
+
+- Exposes the extension through a root `index.ts` package entry so pi displays the installed package as `@kky42/pi-goal` instead of `@kky42/pi-goal:src`.
+
 ## 1.0.0 - 2026-05-30
 
 - Renames the public package to `@kky42/pi-goal` for npm and pi package installs.
