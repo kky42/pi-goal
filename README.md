@@ -63,9 +63,11 @@ This intentionally matches Codex TUI behavior: token budgets are set through the
 
 `get_goal` returns the current goal state and usage.
 
-`update_goal` only accepts `status: "complete"`, matching Codex's model-side contract. Calling it on an already-complete goal is idempotent and does not append duplicate session entries. The extension reports final token and elapsed-time usage before marking the goal complete.
+`update_goal` accepts `status: "complete"` or `status: "blocked"`, matching Codex's model-side contract. Calling it on an already-complete goal is idempotent and does not append duplicate session entries. The extension reports final token and elapsed-time usage before marking the goal complete.
 
 Completed goals are terminal for automatic transitions: pause, resume, and hidden continuations do not reopen them. To recover from premature completion, use `/goal <objective>` to replace the goal or `/goal clear` before starting again.
+
+Blocked goals stop automatic continuation like paused goals. Use `/goal resume` to reactivate a blocked goal. Budget-limited goals are system-controlled and are not resumable.
 
 In bridged MCP environments such as `pi-cursor-sdk`, pi may expose these tools under namespaced MCP names like `pi__get_goal`, `pi__create_goal`, and `pi__update_goal`. Prompt guidance tells models to call whichever goal-tool name is actually exposed in the current run, not display or transcript labels.
 
@@ -78,12 +80,12 @@ While a goal is active, the extension:
 - coalesces runtime goal custom-entry writes so unchanged status and usage are not appended on every tool completion; live footer usage stays current, and meaningful usage is flushed at turn boundaries, shutdown, compaction, budget crossings, and bounded intervals during long tool-heavy runs
 - pauses when an active assistant turn is aborted, such as when you press Esc
 - recovers from provider assistant errors without immediate hidden continuation loops: context-window overflow triggers automatic compaction and then resumes the active goal, transient errors use bounded backoff retries, and repeated unrecoverable failures pause with a clear `/goal resume` path
-- prompts on session resume before reactivating a paused goal, and resumes explicitly with `/goal resume` (only from paused)
-- rejects `/goal pause` unless the goal is active and `/goal resume` unless the goal is paused
+- prompts on session resume before reactivating a paused goal, and resumes explicitly with `/goal resume` from paused or blocked
+- rejects `/goal pause` unless the goal is active and `/goal resume` unless the goal is paused or blocked
 - treats completed goals as terminal for automatic transitions while allowing `/goal <objective>` to replace them without extra friction
 - marks the goal `budgetLimited` when a positive token budget is reached
 - sends hidden steering messages when budget is reached or when the agent is idle but the goal is still active
-- compacts repeated hidden goal continuations before provider context so only the latest active continuation stays runnable, older ones become short bookkeeping markers, and auto-queued continuations use a compact prompt after `/goal` start or resume
+- keeps appended continuation prompts byte-stable for provider prefix caching; stale queued continuations are handled at runtime admission using hidden metadata instead of rewriting old provider context
 - shows Codex-style status labels with compact token or elapsed-time usage in the pi footer when UI is available
 
 Token counts are formatted with commas and compact abbreviations, for example `123M (123,456,789) tokens`. Token totals use pi's completed assistant turn input plus output usage. Cache read and cache write channels are excluded because they are provider cache accounting fields, not extra sent and received text tokens. Pi does not currently expose a separate extension usage total for automatic compaction summary calls.

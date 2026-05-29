@@ -15,10 +15,8 @@ import { createGoalStateController } from "./goal-state-controller.js";
 import { createGoalRecoveryRuntime } from "./recovery-runtime.js";
 import {
   clearActiveHostOverflowRecovery,
-  goalStartTurnStrategy,
   resetRecoveryMachine,
   setRecoveryPausedAttention,
-  type GoalStartTurnStrategy,
 } from "./recovery-machine.js";
 import { goalWithLiveUsage } from "./state.js";
 import { registerGoalTools } from "./tools.js";
@@ -26,10 +24,10 @@ import type { GoalEntrySource, GoalResult, ThreadGoal } from "./types.js";
 
 export interface GoalRuntimeController extends GoalRuntimeEventHandlers {
   getGoalForDisplay(): ThreadGoal | null;
-  getGoalStartTurnStrategy(): GoalStartTurnStrategy;
   setGoal(goal: ThreadGoal, source: GoalEntrySource, ctx: ExtensionContext): void;
   clearGoal(source: GoalEntrySource, ctx: ExtensionContext): void;
-  completeGoal(source: GoalEntrySource, ctx: ExtensionContext): GoalResult;
+  updateGoal(status: "complete" | "blocked", source: GoalEntrySource, ctx: ExtensionContext): GoalResult;
+  requestContinuation(ctx: ExtensionContext): void;
 }
 
 export function createGoalRuntimeController(pi: ExtensionAPI): GoalRuntimeController {
@@ -109,7 +107,7 @@ export function createGoalRuntimeController(pi: ExtensionAPI): GoalRuntimeContro
       );
     },
     refreshUi: status.refreshUi,
-    maybeContinue: continuation.maybeContinue,
+    requestContinuation: continuation.requestContinuation,
   });
 
   const eventHandlers = createGoalRuntimeEventHandlers({
@@ -124,21 +122,25 @@ export function createGoalRuntimeController(pi: ExtensionAPI): GoalRuntimeContro
     resetErrorRecovery,
   });
 
-  const completeGoal = (source: GoalEntrySource, ctx: ExtensionContext): GoalResult => {
+  const updateGoal = (
+    status: "complete" | "blocked",
+    source: GoalEntrySource,
+    ctx: ExtensionContext,
+  ): GoalResult => {
     goalAccounting.accountProgress(ctx, false, 0, true);
-    return stateController.completeGoal(source, ctx);
+    return stateController.updateGoal(status, source, ctx);
   };
 
   return {
     getGoalForDisplay: goalForDisplay,
-    getGoalStartTurnStrategy: () => goalStartTurnStrategy(runtimeState.recoveryState.phase),
     setGoal(nextGoal, source, ctx) {
       stateController.applyGoalTransition({ kind: "set", nextGoal, source }, ctx);
     },
     clearGoal(source, ctx) {
       stateController.applyGoalTransition({ kind: "clear", source }, ctx);
     },
-    completeGoal,
+    updateGoal,
+    requestContinuation: continuation.requestContinuation,
     ...eventHandlers,
   };
 }
@@ -148,13 +150,13 @@ export function registerGoalRuntimeController(pi: ExtensionAPI): void {
   registerGoalTools(pi, {
     getGoal: () => controller.getGoalForDisplay(),
     setGoal: controller.setGoal.bind(controller),
-    completeGoal: controller.completeGoal.bind(controller),
+    updateGoal: controller.updateGoal.bind(controller),
   });
   registerGoalCommand(pi, {
     getGoal: () => controller.getGoalForDisplay(),
-    getGoalStartTurnStrategy: controller.getGoalStartTurnStrategy.bind(controller),
     setGoal: controller.setGoal.bind(controller),
     clearGoal: controller.clearGoal.bind(controller),
+    requestContinuation: controller.requestContinuation.bind(controller),
   });
   registerGoalRuntimeEvents(pi, controller);
 }

@@ -153,7 +153,13 @@ export function isThreadGoal(goal: unknown): goal is ThreadGoal {
 }
 
 export function isGoalStatus(status: unknown): status is GoalStatus {
-  return status === "active" || status === "paused" || status === "budgetLimited" || status === "complete";
+  return (
+    status === "active" ||
+    status === "paused" ||
+    status === "blocked" ||
+    status === "budgetLimited" ||
+    status === "complete"
+  );
 }
 
 export function reconstructGoal(entries: Iterable<SessionEntryLike>): GoalSnapshot {
@@ -279,6 +285,23 @@ export function updateGoalStatus(current: ThreadGoal | null, status: GoalStatus)
     };
   }
 
+  if (status === "blocked") {
+    if (current.status === "blocked") {
+      return {
+        ok: true,
+        message: "Goal already blocked.",
+        goal: current,
+      };
+    }
+    if (current.status !== "active") {
+      return {
+        ok: false,
+        message: "Only active goals can be blocked.",
+        goal: current,
+      };
+    }
+  }
+
   if (status === "paused" && current.status !== "active") {
     return {
       ok: false,
@@ -287,20 +310,24 @@ export function updateGoalStatus(current: ThreadGoal | null, status: GoalStatus)
     };
   }
 
-  if (status === "active" && current.status !== "paused") {
+  if (status === "active" && current.status === "budgetLimited") {
     return {
       ok: false,
-      message: "Only paused goals can be resumed.",
+      message: "Budget-limited goals are system-controlled and cannot be resumed.",
+      goal: current,
+    };
+  }
+
+  if (status === "active" && current.status !== "paused" && current.status !== "blocked") {
+    return {
+      ok: false,
+      message: "Only paused or blocked goals can be resumed.",
       goal: current,
     };
   }
 
   const goal = cloneGoal(current);
-  if (current.status === "budgetLimited" && (status === "active" || status === "paused")) {
-    goal.status = "budgetLimited";
-  } else {
-    goal.status = statusAfterBudgetLimit(status, goal.usage.tokensUsed, goal.tokenBudget);
-  }
+  goal.status = statusAfterBudgetLimit(status, goal.usage.tokensUsed, goal.tokenBudget);
   goal.updatedAt = unixSeconds();
 
   return {

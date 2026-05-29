@@ -19,7 +19,7 @@ interface RecoveryRuntimeDeps {
   clearContinuationState: () => void;
   pauseGoalForRecovery: (ctx: ExtensionContext, recoveryReason: string) => void;
   refreshUi: (ctx: ExtensionContext) => void;
-  maybeContinue: (ctx: ExtensionContext) => void;
+  requestContinuation: (ctx: ExtensionContext) => void;
 }
 
 export function createGoalRecoveryRuntime(deps: RecoveryRuntimeDeps) {
@@ -78,7 +78,7 @@ export function createGoalRecoveryRuntime(deps: RecoveryRuntimeDeps) {
     if (onRecoverySuccessfulTurn(deps.getRecoveryState(), message)) {
       deps.refreshUi(ctx);
       if (options?.continueGoal !== false) {
-        deps.maybeContinue(ctx);
+        deps.requestContinuation(ctx);
       }
     }
   };

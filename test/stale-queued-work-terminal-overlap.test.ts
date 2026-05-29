@@ -7,9 +7,7 @@ import {
   emitProviderContext,
   emitQueuedTurnThroughContext,
   goalUserContextMessage,
-  providerContextMessageAt,
   queuedCustomMessage,
-  requireProviderContextResult,
 } from "./support/runtime-harness.js";
 import { CUSTOM_ENTRY_TYPE } from "../src/types.js";
 
@@ -428,18 +426,14 @@ test("mixed stale and current follow-up batch neutralizes stale work without abo
   harness.sentMessages.length = 0;
 
   const contextResults = await emitQueuedTurnThroughContext(harness, [oldMessage, currentMessage]);
-  const contextResult = requireProviderContextResult(contextResults);
 
   assert.equal(harness.abortCount, 0);
-  assert.equal(contextResult.messages.length, 2);
-  assert.match(String(providerContextMessageAt(contextResult, 0).content), /queued hidden goal continuation was stale/);
-  assert.deepEqual(providerContextMessageAt(contextResult, 0).details, {
-    kind: "stale_continuation",
-    goalId: oldGoalId,
-    currentGoalId: replacement?.goalId,
-    currentStatus: "active",
+  assert.equal(contextResults[0], undefined);
+  assert.deepEqual(oldMessage.details, { kind: "continuation", goalId: oldGoalId });
+  assert.deepEqual(currentMessage.details, {
+    kind: "continuation",
+    goalId: replacement?.goalId,
   });
-  assert.deepEqual(providerContextMessageAt(contextResult, 1).details, currentMessage.details);
 
   await harness.emit("turn_end", {
     type: "turn_end",

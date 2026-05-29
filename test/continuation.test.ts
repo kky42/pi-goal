@@ -104,17 +104,17 @@ test("session resume prompt can reactivate a paused goal", async () => {
   await harness.emit("session_start", { type: "session_start", reason: "resume" });
 
   assert.equal(harness.snapshot().goal?.status, "active");
-  assert.equal(harness.sentMessages.length, 0);
-  assert.equal(harness.sentUserMessages.length, 1);
-  const sentUserMessage = harness.sentUserMessages[0];
-  assert.ok(sentUserMessage);
-  assert.deepEqual(sentUserMessage.options, { deliverAs: "followUp" });
-  const content = sentUserMessage.content;
+  assert.equal(harness.sentUserMessages.length, 0);
+  assert.equal(harness.sentMessages.length, 1);
+  const sentMessage = harness.sentMessages[0];
+  assert.ok(sentMessage);
+  assert.deepEqual(sentMessage.options, { triggerTurn: true, deliverAs: "followUp" });
+  const content = sentMessage.message.content;
   if (typeof content !== "string") {
-    assert.fail("Expected session resume to send a user continuation prompt.");
+    assert.fail("Expected session resume to send a scheduler continuation prompt.");
   }
-  assert.doesNotMatch(content, /<untrusted_objective>/);
-  assert.match(content, /<pi_goal_continuation goal_id="/);
+  assert.match(content, /<objective>\nship it\n<\/objective>/);
+  assert.doesNotMatch(content, /<pi_goal_continuation/);
 });
 
 test("completed turns count input plus output and continue active goals", async () => {
@@ -268,6 +268,15 @@ test("goal tools return Codex-shaped response details", async () => {
     remainingTokens: 20,
     completionBudgetReport: null,
   });
+  assert.equal("goalId" in (created.details.goal as Record<string, unknown>), false);
+
+  const blocked = (await harness.runTool("update_goal", { status: "blocked" })) as {
+    details: Record<string, unknown>;
+  };
+  assert.equal((blocked.details.goal as { status?: string }).status, "blocked");
+  assert.equal(blocked.details.completionBudgetReport, null);
+
+  await harness.runCommand("resume");
 
   const completed = (await harness.runTool("update_goal", { status: "complete" })) as {
     details: Record<string, unknown>;
@@ -278,12 +287,13 @@ test("goal tools return Codex-shaped response details", async () => {
 test("agent end waits for idle before continuing active goals", async () => {
   mock.timers.enable({ apis: ["setTimeout"] });
   try {
-    const harness = createRuntimeHarness({ idle: false, pendingMessages: true });
+    const harness = createRuntimeHarness();
     await harness.runCommand("ship it");
     const queued = harness.sentMessages[0];
     assert.ok(queued);
     const queuedMessage = queuedCustomMessage(queued);
     harness.sentMessages.length = 0;
+    harness.setIdle(false);
 
     await harness.emit("turn_start", { type: "turn_start", turnIndex: 0, timestamp: 1 });
     await harness.emit("message_start", {
@@ -312,10 +322,40 @@ test("agent end waits for idle before continuing active goals", async () => {
   }
 });
 
+test("agent end does not queue continuation while user messages are pending", async () => {
+  mock.timers.enable({ apis: ["setTimeout"] });
+  try {
+    const harness = createRuntimeHarness();
+    await harness.runCommand("ship it");
+    const queued = harness.sentMessages[0];
+    assert.ok(queued);
+    const queuedMessage = queuedCustomMessage(queued);
+    harness.sentMessages.length = 0;
+    harness.setPendingMessages(true);
+
+    await harness.emit("turn_start", { type: "turn_start", turnIndex: 0, timestamp: 1 });
+    await harness.emit("message_start", {
+      type: "message_start",
+      message: queuedMessage,
+    });
+    await harness.emit("agent_end", {
+      type: "agent_end",
+      messages: [assistantMessage("stop", { input: 30, output: 12 })],
+    });
+
+    assert.equal(harness.sentMessages.length, 0);
+    harness.setPendingMessages(false);
+    flushContinuationScheduler();
+    assert.equal(harness.sentMessages.length, 0);
+  } finally {
+    mock.timers.reset();
+  }
+});
+
 test("completing a goal cancels a scheduled continuation before it is sent", async () => {
   mock.timers.enable({ apis: ["setTimeout"] });
   try {
-    const harness = createRuntimeHarness({ idle: false, pendingMessages: true });
+    const harness = createRuntimeHarness({ idle: false, pendingMessages: false });
     await harness.runCommand("ship it");
     harness.sentMessages.length = 0;
 
@@ -389,13 +429,14 @@ test("goal follow-up guard resets when custom-message continuations start", asyn
   });
 });
 
-test("auto-queued continuations use the compact prompt", async () => {
+test("auto-queued continuations use the Codex-style objective prompt without visible goal id", async () => {
   const harness = createRuntimeHarness();
   await harness.runCommand("ship it");
   const commandStart = harness.sentMessages[0];
   assert.ok(commandStart);
   const startPrompt = String(commandStart.message.content);
-  assert.match(startPrompt, /<untrusted_objective>/);
+  assert.match(startPrompt, /<objective>\nship it\n<\/objective>/);
+  assert.doesNotMatch(startPrompt, /<pi_goal_continuation/);
 
   harness.sentMessages.length = 0;
   await harness.emit("before_agent_start", {
@@ -412,18 +453,20 @@ test("auto-queued continuations use the compact prompt", async () => {
   const continuation = harness.sentMessages[0];
   assert.ok(continuation);
   const content = String(continuation.message.content);
-  assert.match(content, /<pi_goal_continuation goal_id="/);
-  assert.doesNotMatch(content, /<untrusted_objective>/);
+  assert.match(content, /<objective>\nship it\n<\/objective>/);
+  assert.doesNotMatch(content, /<pi_goal_continuation/);
+  assert.doesNotMatch(content, new RegExp(String(harness.snapshot().goal?.goalId)));
   assert.match(content, /get_goal/);
 });
 
 test("session compaction queues continuation for active goals after length stops", async () => {
-  const harness = createRuntimeHarness({ idle: false, pendingMessages: true });
+  const harness = createRuntimeHarness();
   await harness.runCommand("ship it");
   const queued = harness.sentMessages[0];
   assert.ok(queued);
   const queuedMessage = queuedCustomMessage(queued);
   harness.sentMessages.length = 0;
+  harness.setIdle(false);
 
   await harness.emit("turn_start", { type: "turn_start", turnIndex: 0, timestamp: 1 });
   await harness.emit("message_start", {

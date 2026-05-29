@@ -9,7 +9,6 @@ import {
   continuationGoalIdFromPrompt,
   continuationPrompt,
   goalToolReference,
-  supersededContinuationMessage,
 } from "../src/prompts.js";
 import { createGoal } from "../src/state.js";
 
@@ -28,27 +27,31 @@ test("tool prompt guidelines include exposed and namespaced goal tool guidance",
   assert.match(combined, /update_goal \(or the exposed namespaced equivalent, such as pi__update_goal\)/);
 });
 
-test("compact continuation keeps marker detection without repeating the full objective", () => {
+test("continuation prompts do not expose goal ids or legacy runnable markers", () => {
   const created = createGoal(null, "ship it", 10).goal;
   assert.ok(created);
 
   const compact = compactContinuationPrompt(created);
   const full = continuationPrompt(created);
 
-  assert.equal(continuationGoalIdFromPrompt(compact), created.goalId);
-  assert.match(compact, /<pi_goal_continuation goal_id="/);
-  assert.doesNotMatch(compact, /<untrusted_objective>/);
+  assert.equal(continuationGoalIdFromPrompt(compact), null);
+  assert.equal(continuationGoalIdFromPrompt(full), null);
+  assert.doesNotMatch(compact, /<pi_goal_continuation/);
+  assert.doesNotMatch(full, /<pi_goal_continuation/);
+  assert.doesNotMatch(compact, new RegExp(created.goalId));
+  assert.doesNotMatch(full, new RegExp(created.goalId));
+  assert.doesNotMatch(compact, /<objective>/);
+  assert.match(full, /<objective>\nship it\n<\/objective>/);
   assert.match(compact, /get_goal/);
   assert.ok(compact.length < full.length);
 });
 
-test("superseded continuation bookkeeping does not expose a runnable marker", () => {
+test("legacy continuation parser remains backward-compatible only", () => {
   const created = createGoal(null, "ship it", 10).goal;
   assert.ok(created);
 
-  const superseded = supersededContinuationMessage(created.goalId);
-  assert.equal(continuationGoalIdFromPrompt(superseded), null);
-  assert.match(superseded, /Superseded hidden goal continuation bookkeeping/);
+  const legacy = `<pi_goal_continuation goal_id="${created.goalId}">\nlegacy\n</pi_goal_continuation>`;
+  assert.equal(continuationGoalIdFromPrompt(legacy), created.goalId);
 });
 
 test("continuation and budget-limit prompts reference exposed goal-completion tool names", () => {
@@ -63,4 +66,29 @@ test("continuation and budget-limit prompts reference exposed goal-completion to
     assert.match(prompt, /pi__update_goal/);
     assert.match(prompt, /Do not assume display, history, or transcript tool names are callable/);
   }
+});
+
+test("continuation prompt uses Codex-style sections and safe current-goal guidance", () => {
+  const created = createGoal(null, "ship it", 10).goal;
+  assert.ok(created);
+
+  const continuation = continuationPrompt(created);
+
+  for (const section of [
+    "Continuation behavior:",
+    "Work from evidence:",
+    "Progress visibility:",
+    "Fidelity:",
+    "Completion audit:",
+    "Blocked audit:",
+  ]) {
+    assert.match(continuation, new RegExp(section));
+  }
+  assert.match(continuation, /<objective>\nship it\n<\/objective>/);
+  assert.match(continuation, /If no active goal exists, do not continue/);
+  assert.match(continuation, /Older goal-continuation messages are historical context/);
+  assert.match(continuation, /Tokens used: 0/);
+  assert.match(continuation, /Token budget: 10/);
+  assert.match(continuation, /Tokens remaining: 10/);
+  assert.doesNotMatch(continuation, /Time spent pursuing goal/);
 });

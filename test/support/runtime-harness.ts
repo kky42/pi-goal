@@ -271,8 +271,17 @@ export function createRuntimeHarness(options: {
 
   async function emit(event: string, payload: object): Promise<unknown[]> {
     if (event === "message_start") {
-      const message = (payload as { message?: { role?: string } }).message;
-      if (message?.role === "user") {
+      const message = (payload as {
+        message?: { role?: string; customType?: string; details?: unknown };
+      }).message;
+      const details = message?.details as { kind?: unknown } | undefined;
+      const isGoalContinuation =
+        message?.role === "custom" &&
+        message.customType === CUSTOM_ENTRY_TYPE &&
+        (details?.kind === "continuation" ||
+          details?.kind === "command_start" ||
+          details?.kind === "command_resume");
+      if (message?.role === "user" || isGoalContinuation) {
         runtime.hostOverflowRecoveryAttempted = false;
       }
     }

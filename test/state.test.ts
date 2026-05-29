@@ -97,6 +97,21 @@ test("updateGoalStatus marks completion without clearing final usage", () => {
   assert.equal(result.goal?.usage.activeSeconds, 9);
 });
 
+test("updateGoalStatus blocks active goals without clearing final usage", () => {
+  const created = createGoal(null, "finish", 10).goal;
+  assert.ok(created);
+  const used = applyUsage(created, 5, 9).goal;
+  assert.ok(used);
+
+  const result = updateGoalStatus(used, "blocked");
+
+  assert.equal(result.ok, true);
+  assert.equal(result.goal?.status, "blocked");
+  assert.equal(result.goal?.usage.tokensUsed, 5);
+  assert.equal(result.goal?.usage.activeSeconds, 9);
+  assert.equal(updateGoalStatus(result.goal, "blocked").message, "Goal already blocked.");
+});
+
 test("applyUsage accumulates supplied token deltas", () => {
   const created = createGoal(null, "finish", 1_000_000).goal;
   assert.ok(created);
@@ -152,7 +167,7 @@ test("maximum goal objective length remains 8000 Unicode scalars in this package
   assert.equal(createGoal(null, "x".repeat(8_001)).ok, false);
 });
 
-test("updateGoalStatus rejects pause and resume on completed goals", () => {
+test("updateGoalStatus rejects pause, block, and resume on completed goals", () => {
   const created = createGoal(null, "finish").goal;
   assert.ok(created);
   const completed = updateGoalStatus(created, "complete").goal;
@@ -162,10 +177,11 @@ test("updateGoalStatus rejects pause and resume on completed goals", () => {
   assert.equal(updateGoalStatus(completed, "complete").ok, true);
   assert.equal(updateGoalStatus(completed, "complete").message, "Goal already complete.");
   assert.equal(updateGoalStatus(completed, "paused").ok, false);
+  assert.equal(updateGoalStatus(completed, "blocked").ok, false);
   assert.equal(updateGoalStatus(completed, "active").ok, false);
 });
 
-test("updateGoalStatus only allows pause from active and resume from paused", () => {
+test("updateGoalStatus only allows pause and block from active, and resume from paused or blocked", () => {
   const created = createGoal(null, "finish").goal;
   assert.ok(created);
 
@@ -175,12 +191,22 @@ test("updateGoalStatus only allows pause from active and resume from paused", ()
   assert.equal(paused.status, "paused");
 
   assert.equal(updateGoalStatus(paused, "paused").ok, false);
+  assert.equal(updateGoalStatus(paused, "blocked").ok, false);
 
   const resumed = updateGoalStatus(paused, "active").goal;
   assert.ok(resumed);
   assert.equal(resumed.status, "active");
 
   assert.equal(updateGoalStatus(resumed, "active").ok, false);
+
+  const blocked = updateGoalStatus(resumed, "blocked").goal;
+  assert.ok(blocked);
+  assert.equal(blocked.status, "blocked");
+  assert.equal(updateGoalStatus(blocked, "paused").ok, false);
+
+  const resumedBlocked = updateGoalStatus(blocked, "active").goal;
+  assert.ok(resumedBlocked);
+  assert.equal(resumedBlocked.status, "active");
 });
 
 test("createGoal replaces completed goals and rejects non-complete duplicates", () => {
@@ -197,6 +223,11 @@ test("createGoal replaces completed goals and rejects non-complete duplicates", 
   assert.ok(paused);
   assert.equal(createGoal(paused, "next").ok, false);
   assert.match(createGoal(paused, "next").message ?? "", /non-complete goal/);
+
+  const blocked = updateGoalStatus(created, "blocked").goal;
+  assert.ok(blocked);
+  assert.equal(createGoal(blocked, "next").ok, false);
+  assert.match(createGoal(blocked, "next").message ?? "", /non-complete goal/);
 
   const limited = applyUsage(createGoal(null, "finish", 10).goal!, 10, 0).goal;
   assert.ok(limited);
@@ -221,15 +252,16 @@ test("goalsEquivalent compares full goal snapshots", () => {
   assert.equal(goalsEquivalent(created, { ...clone, status: "paused" }), false);
 });
 
-test("budget-limited goals cannot be paused or resumed back to active while over budget", () => {
+test("budget-limited goals cannot be paused, blocked, or resumed", () => {
   const created = createGoal(null, "finish", 10).goal;
   assert.ok(created);
   const limited = applyUsage(created, 10, 0).goal;
   assert.ok(limited);
   assert.equal(limited.status, "budgetLimited");
 
-  assert.equal(updateGoalStatus(limited, "paused").goal?.status, "budgetLimited");
-  assert.equal(updateGoalStatus(limited, "active").goal?.status, "budgetLimited");
+  assert.equal(updateGoalStatus(limited, "paused").ok, false);
+  assert.equal(updateGoalStatus(limited, "blocked").ok, false);
+  assert.equal(updateGoalStatus(limited, "active").ok, false);
 });
 
 test("hidden prompts XML-escape untrusted goal objectives", () => {
@@ -242,4 +274,15 @@ test("hidden prompts XML-escape untrusted goal objectives", () => {
   assert.match(continuation, /ship &amp; &lt;\/untrusted_objective&gt;&lt;evil&gt;/);
   assert.doesNotMatch(continuation, /ship & <\/untrusted_objective><evil>/);
   assert.match(budget, /ship &amp; &lt;\/untrusted_objective&gt;&lt;evil&gt;/);
+});
+
+test("blocked footer and summary show resume distinctly", () => {
+  const created = createGoal(null, "finish").goal;
+  assert.ok(created);
+  const blocked = updateGoalStatus(created, "blocked").goal;
+  assert.ok(blocked);
+
+  assert.match(formatGoalSummary(blocked), /Status: blocked/);
+  assert.match(formatGoalSummary(blocked), /Hint: \/goal resume, \/goal clear/);
+  assert.equal(formatFooterStatus(blocked), "Goal blocked (/goal resume)");
 });

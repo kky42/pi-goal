@@ -1,21 +1,19 @@
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 
 import { formatGoalSummary } from "./format.js";
-import type { GoalStartTurnStrategy } from "./recovery-machine.js";
-import { compactContinuationPrompt, continuationPrompt } from "./prompts.js";
 import { replaceGoal, updateGoalStatus } from "./state.js";
-import { CUSTOM_ENTRY_TYPE, type GoalEntrySource, type ThreadGoal } from "./types.js";
+import type { GoalEntrySource, ThreadGoal } from "./types.js";
 
 export interface CommandHost {
   getGoal(): ThreadGoal | null;
   setGoal(goal: ThreadGoal, source: GoalEntrySource, ctx: GoalCommandContext): void;
   clearGoal(source: GoalEntrySource, ctx: GoalCommandContext): void;
-  getGoalStartTurnStrategy(): GoalStartTurnStrategy;
+  requestContinuation(ctx: GoalCommandContext): void;
 }
 
 const COMMANDS = ["pause", "resume", "clear"] as const;
 
-export type GoalCommandPi = Pick<ExtensionAPI, "registerCommand" | "sendMessage" | "sendUserMessage">;
+export type GoalCommandPi = Pick<ExtensionAPI, "registerCommand">;
 
 export interface GoalCommandContext {
   hasUI: boolean;
@@ -30,24 +28,8 @@ function completions(prefix: string) {
   }));
 }
 
-function queueGoalTurn(pi: GoalCommandPi, goal: ThreadGoal, kind: "command_start" | "command_resume"): void {
-  pi.sendMessage(
-    {
-      customType: CUSTOM_ENTRY_TYPE,
-      content: continuationPrompt(goal),
-      display: false,
-      details: { kind, goalId: goal.goalId },
-    },
-    { triggerTurn: true, deliverAs: "followUp" },
-  );
-}
-
-function queueGoalUserTurn(pi: GoalCommandPi, goal: ThreadGoal): void {
-  pi.sendUserMessage(compactContinuationPrompt(goal), { deliverAs: "followUp" });
-}
-
 export async function handleGoalCommand(
-  pi: GoalCommandPi,
+  _pi: GoalCommandPi,
   host: CommandHost,
   args: string,
   ctx: GoalCommandContext,
@@ -80,7 +62,7 @@ export async function handleGoalCommand(
     host.setGoal(result.goal, "command", ctx);
     ctx.ui.notify(result.message);
     if (trimmed === "resume" && result.goal.status === "active") {
-      queueGoalUserTurn(pi, result.goal);
+      host.requestContinuation(ctx);
     }
     return;
   }
@@ -108,11 +90,7 @@ export async function handleGoalCommand(
   }
   host.setGoal(result.goal, "command", ctx);
   ctx.ui.notify(result.message);
-  if (host.getGoalStartTurnStrategy() === "userFollowUp") {
-    queueGoalUserTurn(pi, result.goal);
-  } else {
-    queueGoalTurn(pi, result.goal, "command_start");
-  }
+  host.requestContinuation(ctx);
 }
 
 export function registerGoalCommand(pi: GoalCommandPi, host: CommandHost): void {

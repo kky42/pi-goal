@@ -7,34 +7,16 @@ import {
   type GoalCommandContext,
   type GoalCommandPi,
 } from "../src/commands.js";
-import type { GoalStartTurnStrategy } from "../src/recovery-machine.js";
 import { applyUsage, updateGoalStatus } from "../src/state.js";
-import { CUSTOM_ENTRY_TYPE, type GoalEntrySource, type ThreadGoal } from "../src/types.js";
-
-type SendMessage = GoalCommandPi["sendMessage"];
-
-interface SentMessage {
-  message: Parameters<SendMessage>[0];
-  options: Parameters<SendMessage>[1];
-}
+import type { GoalEntrySource, ThreadGoal } from "../src/types.js";
 
 function createHarness() {
   let goal: ThreadGoal | null = null;
-  const sentMessages: SentMessage[] = [];
-  const sentUserMessages: Array<{
-    content: Parameters<GoalCommandPi["sendUserMessage"]>[0];
-    options: Parameters<GoalCommandPi["sendUserMessage"]>[1];
-  }> = [];
+  let continuationRequests = 0;
   const notifications: string[] = [];
 
   const pi: GoalCommandPi = {
     registerCommand() {},
-    sendMessage(message: SentMessage["message"], options: SentMessage["options"]) {
-      sentMessages.push({ message, options });
-    },
-    sendUserMessage(content, options) {
-      sentUserMessages.push({ content, options });
-    },
   };
 
   const host: CommandHost = {
@@ -45,7 +27,9 @@ function createHarness() {
     clearGoal() {
       goal = null;
     },
-    getGoalStartTurnStrategy: () => "hiddenFollowUp",
+    requestContinuation() {
+      continuationRequests += 1;
+    },
   };
 
   const ctx: GoalCommandContext = {
@@ -70,63 +54,42 @@ function createHarness() {
       return goal;
     },
     notifications,
-    sentMessages,
-    sentUserMessages,
+    resetContinuationRequests() {
+      continuationRequests = 0;
+    },
+    get continuationRequests() {
+      return continuationRequests;
+    },
   };
 }
 
-test("/goal objective creates the goal and starts a hidden follow-up turn", async () => {
+test("/goal objective creates the goal and requests scheduler continuation", async () => {
   const harness = createHarness();
 
   await handleGoalCommand(harness.pi, harness.host, "ship the feature", harness.ctx);
 
   assert.equal(harness.goal?.objective, "ship the feature");
   assert.equal(harness.notifications.at(-1), "Goal set.");
-  assert.equal(harness.sentMessages.length, 1);
-  const sentMessage = harness.sentMessages[0];
-  assert.ok(sentMessage);
-  assert.equal(sentMessage.message.customType, CUSTOM_ENTRY_TYPE);
-  assert.equal(sentMessage.message.display, false);
-  assert.deepEqual(sentMessage.message.details, {
-    kind: "command_start",
-    goalId: harness.goal?.goalId,
-  });
-  const content = sentMessage.message.content;
-  if (typeof content !== "string") {
-    assert.fail("Expected queued goal message content to be a string.");
-  }
-  assert.match(content, /<untrusted_objective>\nship the feature\n<\/untrusted_objective>/);
-  assert.deepEqual(sentMessage.options, { triggerTurn: true, deliverAs: "followUp" });
+  assert.equal(harness.continuationRequests, 1);
 });
 
-test("/goal resume sends a user continuation turn", async () => {
+test("/goal resume requests scheduler continuation", async () => {
   const harness = createHarness();
 
   await handleGoalCommand(harness.pi, harness.host, "ship the feature", harness.ctx);
   const paused = updateGoalStatus(harness.goal, "paused").goal;
   assert.ok(paused);
-  harness.sentMessages.length = 0;
+  harness.resetContinuationRequests();
   harness.setGoal(paused);
 
   await handleGoalCommand(harness.pi, harness.host, "resume", harness.ctx);
 
   assert.equal(harness.goal?.status, "active");
-  assert.equal(harness.sentMessages.length, 0);
-  assert.equal(harness.sentUserMessages.length, 1);
-  const sentUserMessage = harness.sentUserMessages[0];
-  assert.ok(sentUserMessage);
-  assert.deepEqual(sentUserMessage.options, { deliverAs: "followUp" });
-  const content = sentUserMessage.content;
-  if (typeof content !== "string") {
-    assert.fail("Expected queued goal resume content to be a string.");
-  }
-  assert.doesNotMatch(content, /<untrusted_objective>/);
-  assert.match(content, /<pi_goal_continuation goal_id="/);
+  assert.equal(harness.continuationRequests, 1);
 });
 
-test("/goal objective after overflow recovery sends a user start turn", async () => {
+test("/goal objective always uses the scheduler-owned continuation path", async () => {
   const harness = createHarness();
-  let startTurnStrategy: GoalStartTurnStrategy = "userFollowUp";
   const host: CommandHost = {
     getGoal: () => harness.goal,
     setGoal(nextGoal: ThreadGoal) {
@@ -135,29 +98,17 @@ test("/goal objective after overflow recovery sends a user start turn", async ()
     clearGoal() {
       harness.setGoal(null);
     },
-    getGoalStartTurnStrategy: () => startTurnStrategy,
+    requestContinuation: harness.host.requestContinuation,
   };
 
   await handleGoalCommand(harness.pi, host, "ship the feature", harness.ctx);
 
   assert.equal(harness.goal?.objective, "ship the feature");
-  assert.equal(harness.sentMessages.length, 0);
-  assert.equal(harness.sentUserMessages.length, 1);
-  const sentUserMessage = harness.sentUserMessages[0];
-  assert.ok(sentUserMessage);
-  assert.deepEqual(sentUserMessage.options, { deliverAs: "followUp" });
-  const content = sentUserMessage.content;
-  if (typeof content !== "string") {
-    assert.fail("Expected queued goal start content to be a string.");
-  }
-  assert.match(content, /<pi_goal_continuation goal_id="/);
-  assert.doesNotMatch(content, /<untrusted_objective>/);
+  assert.equal(harness.continuationRequests, 1);
 
-  startTurnStrategy = "hiddenFollowUp";
-  harness.sentUserMessages.length = 0;
+  harness.resetContinuationRequests();
   await handleGoalCommand(harness.pi, host, "another objective", harness.ctx);
-  assert.equal(harness.sentMessages.length, 1);
-  assert.equal(harness.sentUserMessages.length, 0);
+  assert.equal(harness.continuationRequests, 1);
 });
 
 test("/goal pause rejects completed and paused goals", async () => {
@@ -190,11 +141,12 @@ test("/goal resume rejects completed and active goals", async () => {
 
   await handleGoalCommand(harness.pi, harness.host, "ship the feature", harness.ctx);
   assert.equal(harness.goal?.status, "active");
-  harness.sentMessages.length = 0;
+  harness.resetContinuationRequests();
 
   await handleGoalCommand(harness.pi, harness.host, "resume", harness.ctx);
   assert.equal(harness.goal?.status, "active");
-  assert.match(harness.notifications.at(-1) ?? "", /Only paused goals can be resumed/);
+  assert.match(harness.notifications.at(-1) ?? "", /Only paused or blocked goals can be resumed/);
+  assert.equal(harness.continuationRequests, 0);
 });
 
 test("/goal objective replaces a completed goal without confirmation", async () => {
@@ -204,14 +156,14 @@ test("/goal objective replaces a completed goal without confirmation", async () 
   const completed = updateGoalStatus(harness.goal, "complete").goal;
   assert.ok(completed);
   harness.setGoal(completed);
-  harness.sentMessages.length = 0;
+  harness.resetContinuationRequests();
 
   await handleGoalCommand(harness.pi, harness.host, "new objective", harness.ctx);
 
   assert.equal(harness.goal?.objective, "new objective");
   assert.equal(harness.goal?.status, "active");
   assert.notEqual(harness.goal?.goalId, completed.goalId);
-  assert.equal(harness.sentMessages.length, 1);
+  assert.equal(harness.continuationRequests, 1);
 });
 
 test("/goal resume does not restart an over-budget budget-limited goal", async () => {
@@ -221,11 +173,27 @@ test("/goal resume does not restart an over-budget budget-limited goal", async (
   const budgeted = { ...harness.goal, tokenBudget: 10 } as ThreadGoal;
   const limited = applyUsage(budgeted, 10, 0).goal;
   assert.ok(limited);
-  harness.sentMessages.length = 0;
+  harness.resetContinuationRequests();
   harness.setGoal(limited);
 
   await handleGoalCommand(harness.pi, harness.host, "resume", harness.ctx);
 
   assert.equal(harness.goal?.status, "budgetLimited");
-  assert.equal(harness.sentMessages.length, 0);
+  assert.equal(harness.continuationRequests, 0);
+  assert.match(harness.notifications.at(-1) ?? "", /Budget-limited goals are system-controlled/);
+});
+
+test("/goal resume works from blocked goals", async () => {
+  const harness = createHarness();
+
+  await handleGoalCommand(harness.pi, harness.host, "ship the feature", harness.ctx);
+  const blocked = updateGoalStatus(harness.goal, "blocked").goal;
+  assert.ok(blocked);
+  harness.setGoal(blocked);
+  harness.resetContinuationRequests();
+
+  await handleGoalCommand(harness.pi, harness.host, "resume", harness.ctx);
+
+  assert.equal(harness.goal?.status, "active");
+  assert.equal(harness.continuationRequests, 1);
 });

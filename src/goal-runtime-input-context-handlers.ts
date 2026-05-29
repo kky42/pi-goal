@@ -8,7 +8,7 @@ import type {
 
 import { continuationGoalIdFromPrompt } from "./prompts.js";
 import { applyQueuedGoalProviderContextRewrites, extensionQueuedGoalWorkMessageId } from "./queued-goal-work.js";
-import { isCommandResumeQueuedGoalMessage } from "./queued-goal-messages.js";
+import { isActiveGoalQueuedDetails, isCommandResumeQueuedGoalMessage } from "./queued-goal-messages.js";
 import { applyStaleQueuedWorkEffects } from "./goal-runtime-event-utils.js";
 import type {
   ContextEventResult,
@@ -16,6 +16,18 @@ import type {
   MessageStartEvent,
   QueuedGoalWorkMessageIdResolver,
 } from "./goal-runtime-event-handler-types.js";
+
+function goalIdFromQueuedDetails(details: unknown): string | null {
+  return isActiveGoalQueuedDetails(details) ? details.goalId : null;
+}
+
+function goalIdFromEventDetails(event: unknown): string | null {
+  if (!event || typeof event !== "object") {
+    return null;
+  }
+  const candidate = event as { details?: unknown; message?: { details?: unknown } };
+  return goalIdFromQueuedDetails(candidate.details) ?? goalIdFromQueuedDetails(candidate.message?.details);
+}
 
 export function createInputContextEventHandlers(
   deps: GoalRuntimeInputContextHandlerContext,
@@ -26,7 +38,7 @@ export function createInputContextEventHandlers(
   return {
     onInput: (async (event, ctx) => {
       continuation.clearPassthroughContinuationInput();
-      const continuationGoalId = continuationGoalIdFromPrompt(event.text);
+      const continuationGoalId = goalIdFromEventDetails(event) ?? continuationGoalIdFromPrompt(event.text);
 
       if (event.source !== "extension") {
         recoveryRuntime.onUserInput();
@@ -77,10 +89,12 @@ export function createInputContextEventHandlers(
     }) satisfies ExtensionHandler<ContextEvent, ContextEventResult | undefined>,
 
     onBeforeAgentStart: (async (event, ctx) => {
-      const continuationGoalId = continuation.continuationGoalIdFromRuntimePrompt(event.prompt);
+      const continuationGoalId =
+        goalIdFromEventDetails(event) ?? continuation.continuationGoalIdFromRuntimePrompt(event.prompt);
       if (continuationGoalId !== null) {
         continuation.clearContinuationStateFor(continuationGoalId);
         if (!stateController.isCurrentActiveGoalId(continuationGoalId)) {
+          runtimeState.staleQueuedWorkGuard.noteStaleWorkStarted(continuationGoalId);
           status.refreshUi(ctx);
           return undefined;
         }
@@ -116,6 +130,7 @@ export function createInputContextEventHandlers(
 
       continuation.clearContinuationStateFor(queuedGoalId);
       if (stateController.isCurrentActiveGoalId(queuedGoalId)) {
+        stateController.persistHostOverflowUserReset(false);
         runtimeState.staleQueuedWorkGuard.noteRunnableWorkStarted();
         if (isCommandResumeQueuedGoalMessage(event.message)) {
           resetErrorRecovery();

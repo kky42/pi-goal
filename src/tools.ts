@@ -22,15 +22,16 @@ const CreateGoalParams = Type.Object({
 });
 
 const UpdateGoalParams = Type.Object({
-  status: StringEnum(["complete"] as const, {
-    description: "Only complete is accepted. Do not call this until no required work remains.",
+  status: StringEnum(["complete", "blocked"] as const, {
+    description:
+      "Set to complete only when the objective is achieved and no required work remains. Set to blocked only after the strict blocked audit is satisfied.",
   }),
 });
 
 export interface ToolHost {
   getGoal(): ThreadGoal | null;
   setGoal(goal: ThreadGoal, source: GoalEntrySource, ctx: ExtensionContext): void;
-  completeGoal(source: GoalEntrySource, ctx: ExtensionContext): GoalResult;
+  updateGoal(status: "complete" | "blocked", source: GoalEntrySource, ctx: ExtensionContext): GoalResult;
 }
 
 function textResult(
@@ -84,12 +85,13 @@ export function registerGoalTools(pi: ExtensionAPI, host: ToolHost): void {
     name: "update_goal",
     label: "Update Goal",
     description:
-      "Mark the current Codex-style goal complete only after the objective is actually achieved and no required work remains. Do not use this tool just because work is stopping, budget is low, or partial progress looks sufficient.",
-    promptSnippet: "Mark the current goal complete only after an evidence-backed completion audit proves no required work remains.",
+      "Mark the current Codex-style goal complete or blocked. Complete requires verified achievement. Blocked requires the strict repeated-blocker audit; pause, resume, and budget limits are user/system controlled.",
+    promptSnippet:
+      "Mark the current goal complete after a completion audit, or blocked only after the strict repeated-blocker audit is satisfied.",
     promptGuidelines: TOOL_PROMPT_GUIDELINES,
     parameters: UpdateGoalParams,
-    async execute(_toolCallId, _params, _signal, _onUpdate, ctx) {
-      const result = host.completeGoal("tool", ctx);
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      const result = host.updateGoal(params.status, "tool", ctx);
       if (!result.ok || !result.goal) {
         throwToolError(result.message);
       }

@@ -8,7 +8,6 @@ import type {
   SessionTreeEvent,
 } from "@earendil-works/pi-coding-agent";
 
-import { compactContinuationPrompt } from "./prompts.js";
 import { recoveryPhaseBlocksContinuation } from "./recovery-machine.js";
 import { isRecoveryPendingAttention, reasonFromRecoveryPendingAttention } from "./recovery.js";
 import { applyStaleQueuedWorkEffects, runStaleQueuedWorkPlan } from "./goal-runtime-event-utils.js";
@@ -16,7 +15,6 @@ import type { GoalRuntimeSessionHandlerContext } from "./goal-runtime-event-hand
 
 export function createSessionEventHandlers(deps: GoalRuntimeSessionHandlerContext) {
   const {
-    pi,
     runtimeState,
     stateController,
     continuation,
@@ -42,18 +40,18 @@ export function createSessionEventHandlers(deps: GoalRuntimeSessionHandlerContex
           goalAccounting.beginAccounting();
           const resumedGoal = stateController.getGoal();
           if (resumedGoal?.status === "active") {
-            pi.sendUserMessage(compactContinuationPrompt(resumedGoal), { deliverAs: "followUp" });
+            continuation.requestContinuation(ctx);
           }
           return;
         }
       }
-      continuation.maybeContinue(ctx);
+      continuation.requestContinuation(ctx);
     }) satisfies ExtensionHandler<SessionStartEvent>,
 
     onSessionTree: (async (_event, ctx) => {
       stateController.reloadFromSession(ctx);
       goalAccounting.beginAccounting();
-      continuation.maybeContinue(ctx);
+      continuation.requestContinuation(ctx);
     }) satisfies ExtensionHandler<SessionTreeEvent>,
 
     onSessionBeforeCompact: (async (_event, ctx) => {
@@ -80,7 +78,7 @@ export function createSessionEventHandlers(deps: GoalRuntimeSessionHandlerContex
       recoveryRuntime.onSessionCompact();
       status.refreshUi(ctx);
       if (!recoveryPhaseBlocksContinuation(runtimeState.recoveryState.phase)) {
-        continuation.maybeContinue(ctx);
+        continuation.requestContinuation(ctx);
       }
     }) satisfies ExtensionHandler<SessionCompactEvent>,
 

@@ -62,7 +62,7 @@ const commandSetTable: CommandSetTableCase[] = [
     },
     persist: "skip",
     before: [],
-    after: ["markContinuationQueued"],
+    after: [],
   },
   {
     label: "paused skip unchanged",
@@ -112,7 +112,19 @@ const commandSetTable: CommandSetTableCase[] = [
     },
     persist: "set",
     before: ["clearBudgetWarning"],
-    after: ["markContinuationQueued", "resetRecovery"],
+    after: ["resetRecovery"],
+  },
+  {
+    label: "blocked to same active",
+    build: () => {
+      const goal = createThreadGoal("ship it");
+      const blocked = { ...cloneGoal(goal), status: "blocked" as const };
+      const active = { ...cloneGoal(goal), status: "active" as const };
+      return { current: blocked, next: active };
+    },
+    persist: "set",
+    before: ["clearBudgetWarning"],
+    after: ["resetRecovery"],
   },
 ];
 
@@ -205,6 +217,40 @@ test("resume_active keeps over-budget paused goals budgetLimited", () => {
       "clearActiveAccounting",
     ]);
   });
+});
+
+test("resume_active derives active goal from blocked current", () => {
+  withUnixTime(100, () => {
+    const current = { ...createThreadGoal("ship it", 10), status: "blocked" as const };
+    const plan = planGoalTransition(current, { kind: "resume_active" });
+
+    assertDisjointPrimitivePlan(plan, "resume blocked");
+    assert.equal(plan.persist, "set");
+    assert.equal(plan.nextGoal.status, "active");
+    assert.equal(plan.nextGoal.goalId, current.goalId);
+    assert.equal(plan.nextGoal.updatedAt, 100);
+    assert.deepEqual(effectTypes(plan.beforePersist), ["clearContinuation", "resetRecovery", "clearBudgetWarning"]);
+    assert.deepEqual(plan.afterPersist, []);
+  });
+});
+
+test("blocked set transition stops continuation like paused", () => {
+  const goal = createThreadGoal("ship it");
+  const blocked = { ...cloneGoal(goal), status: "blocked" as const };
+  const plan = planGoalTransition(goal, {
+    kind: "set",
+    nextGoal: blocked,
+    source: "tool",
+  });
+
+  assertDisjointPrimitivePlan(plan, "blocked");
+  assert.equal(plan.persist, "set");
+  assert.deepEqual(effectTypes(plan.beforePersist), [
+    "clearContinuation",
+    "clearActiveAccounting",
+    "clearBudgetWarning",
+  ]);
+  assert.deepEqual(plan.afterPersist, []);
 });
 
 test("resume_active can be followed immediately by runtime accounting", () => {
@@ -318,7 +364,7 @@ test("resume_active rejects non-paused current", () => {
   const active = createThreadGoal("ship it");
   assert.throws(
     () => planGoalTransition(active, { kind: "resume_active" }),
-    /Invalid resume_active transition: current status must be paused/,
+    /Invalid resume_active transition: current status must be paused or blocked/,
   );
 });
 
@@ -521,7 +567,7 @@ test("runtime_accounting rejects budgetLimited to active", () => {
 });
 
 test("runtime_accounting rejects inactive current statuses", () => {
-  for (const status of ["paused", "complete"] satisfies GoalStatus[]) {
+  for (const status of ["paused", "blocked", "complete"] satisfies GoalStatus[]) {
     const current = { ...createThreadGoal("ship it", 10), status };
     const next = {
       ...cloneGoal(current),
@@ -539,7 +585,7 @@ test("runtime_accounting rejects inactive current statuses", () => {
 
 test("runtime_accounting rejects paused or complete next status", () => {
   const current = createThreadGoal("ship it", 10);
-  for (const status of ["paused", "complete"] satisfies GoalStatus[]) {
+  for (const status of ["paused", "blocked", "complete"] satisfies GoalStatus[]) {
     const next = {
       ...cloneGoal(current),
       status,

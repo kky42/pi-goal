@@ -53,8 +53,8 @@ export interface GoalRuntimeContinuationPort {
   clearContinuationTimer: () => void;
   clearPassthroughContinuationInput: () => void;
   continuationGoalIdFromRuntimePrompt: (prompt: string) => string | null;
-  maybeContinue: (ctx: ExtensionContext) => void;
   notePassthroughContinuationInput: (input: string) => void;
+  requestContinuation: (ctx: ExtensionContext) => void;
 }
 
 export interface GoalAccountingPort {
@@ -111,7 +111,7 @@ export interface GoalRuntimeAgentHandlerContext extends StaleQueuedWorkEffectCon
   stateController: Pick<GoalStateController, "beginOverflowRecovery" | "flushGoalPersistence" | "pauseForAbort">;
   continuation: Pick<
     GoalRuntimeContinuationPort,
-    "clearPassthroughContinuationInput" | "maybeContinue"
+    "clearPassthroughContinuationInput" | "requestContinuation"
   >;
   goalAccounting: Pick<GoalAccountingPort, "accountProgress">;
   recoveryRuntime: Pick<
@@ -122,7 +122,6 @@ export interface GoalRuntimeAgentHandlerContext extends StaleQueuedWorkEffectCon
 }
 
 export interface GoalRuntimeSessionHandlerContext extends StaleQueuedWorkEffectContext {
-  pi: Pick<ExtensionAPI, "sendUserMessage">;
   runtimeState: Pick<GoalRuntimeState, "recoveryState" | "staleQueuedWorkGuard">;
   stateController: Pick<
     GoalStateController,
@@ -130,7 +129,7 @@ export interface GoalRuntimeSessionHandlerContext extends StaleQueuedWorkEffectC
   >;
   continuation: Pick<
     GoalRuntimeContinuationPort,
-    "clearContinuationTimer" | "clearPassthroughContinuationInput" | "maybeContinue"
+    "clearContinuationTimer" | "clearPassthroughContinuationInput" | "requestContinuation"
   >;
   goalAccounting: GoalAccountingPort;
   recoveryRuntime: Pick<RecoveryRuntimePort, "onSessionCompact">;

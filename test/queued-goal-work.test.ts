@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { toQueuedGoalContextCarrier, toQueuedGoalWorkSource, userContentFromUnknown } from "../src/queued-goal-messages.js";
+import { toQueuedGoalContextCarrier, toQueuedGoalWorkSource } from "../src/queued-goal-messages.js";
 import {
   applyQueuedGoalProviderContextRewrites,
   extensionQueuedGoalWorkMessageId,
   extensionQueuedGoalWorkMessageIdForRuntime,
 } from "../src/queued-goal-work.js";
-import { compactContinuationPrompt, continuationGoalIdFromPrompt, continuationPrompt } from "../src/prompts.js";
+import { continuationGoalIdFromPrompt, continuationPrompt } from "../src/prompts.js";
 import type { ThreadGoal } from "../src/types.js";
 import { goalCustomContextMessage, goalUserContextMessage } from "./support/runtime-harness.js";
 
@@ -35,7 +35,7 @@ test("toQueuedGoalWorkSource ignores unrelated custom messages", () => {
   assert.equal(toQueuedGoalWorkSource(unrelated), null);
 });
 
-test("applyQueuedGoalProviderContextRewrites rewrites stale custom and user queued messages", () => {
+test("applyQueuedGoalProviderContextRewrites does not mutate stale custom or user queued messages", () => {
   const completedGoal = { ...activeGoal, status: "complete" as const };
   const staleCustom = goalCustomContextMessage({
     content: "old",
@@ -50,15 +50,8 @@ test("applyQueuedGoalProviderContextRewrites rewrites stale custom and user queu
     resolveActiveContinuationQueuedGoalWorkMessageId: extensionQueuedGoalWorkMessageId,
   });
 
-  assert.equal(customResult.changed, true);
-  assert.equal(customResult.messages[0]?.display, false);
-  assert.match(String(customResult.messages[0]?.content), /queued hidden goal continuation was stale/);
-  assert.deepEqual(customResult.messages[0]?.details, {
-    kind: "stale_continuation",
-    goalId: activeGoal.goalId,
-    currentGoalId: activeGoal.goalId,
-    currentStatus: "complete",
-  });
+  assert.equal(customResult.changed, false);
+  assert.deepEqual(customResult.messages[0], staleCustom);
 
   const userResult = applyQueuedGoalProviderContextRewrites([staleUser], {
     goal: completedGoal,
@@ -66,18 +59,18 @@ test("applyQueuedGoalProviderContextRewrites rewrites stale custom and user queu
     resolveActiveContinuationQueuedGoalWorkMessageId: extensionQueuedGoalWorkMessageId,
   });
 
-  assert.equal(userResult.changed, true);
-  assert.match(String(userContentFromUnknown(userResult.messages[0]?.content)[0]?.text), /queued hidden goal continuation was stale/);
+  assert.equal(userResult.changed, false);
+  assert.deepEqual(userResult.messages[0], staleUser);
 });
 
-test("applyQueuedGoalProviderContextRewrites supersedes older custom continuations and refreshes the latest", () => {
+test("applyQueuedGoalProviderContextRewrites preserves historical active continuation content", () => {
   const older = goalCustomContextMessage({
     content: continuationPrompt(activeGoal),
     details: { kind: "continuation", goalId: activeGoal.goalId },
     timestamp: 1,
   });
   const latest = goalCustomContextMessage({
-    content: compactContinuationPrompt({
+    content: continuationPrompt({
       ...activeGoal,
       usage: { tokensUsed: 99, activeSeconds: 42 },
     }),
@@ -91,17 +84,15 @@ test("applyQueuedGoalProviderContextRewrites supersedes older custom continuatio
     resolveActiveContinuationQueuedGoalWorkMessageId: extensionQueuedGoalWorkMessageId,
   });
 
-  assert.equal(changed, true);
+  assert.equal(changed, false);
   assert.equal(messages.length, 2);
-  assert.match(String(messages[0]?.content), /Superseded hidden goal continuation bookkeeping/);
-  assert.deepEqual(messages[0]?.details, {
-    kind: "superseded_continuation",
-    goalId: activeGoal.goalId,
-  });
-  assert.match(String(messages[1]?.content), /Tokens used: 0/);
+  assert.deepEqual(messages[0], older);
+  assert.deepEqual(messages[1], latest);
+  assert.match(String(messages[0]?.content), /Tokens used: 0/);
+  assert.match(String(messages[1]?.content), /Tokens used: 99/);
 });
 
-test("applyQueuedGoalProviderContextRewrites marks stale continuations for completed goals", () => {
+test("applyQueuedGoalProviderContextRewrites preserves stale continuation content for completed goals", () => {
   const staleContinuation = goalCustomContextMessage({
     content: continuationPrompt(activeGoal),
     details: { kind: "continuation", goalId: activeGoal.goalId },
@@ -114,17 +105,11 @@ test("applyQueuedGoalProviderContextRewrites marks stale continuations for compl
     resolveActiveContinuationQueuedGoalWorkMessageId: extensionQueuedGoalWorkMessageId,
   });
 
-  assert.equal(changed, true);
-  assert.match(String(messages[0]?.content), /queued hidden goal continuation was stale/);
-  assert.deepEqual(messages[0]?.details, {
-    kind: "stale_continuation",
-    goalId: activeGoal.goalId,
-    currentGoalId: activeGoal.goalId,
-    currentStatus: "complete",
-  });
+  assert.equal(changed, false);
+  assert.deepEqual(messages[0], staleContinuation);
 });
 
-test("applyQueuedGoalProviderContextRewrites leaves an active user marker verbatim", () => {
+test("applyQueuedGoalProviderContextRewrites leaves mixed active queued messages verbatim", () => {
   const userMarker = goalUserContextMessage(continuationPrompt(activeGoal), 2);
   const olderHidden = goalCustomContextMessage({
     content: continuationPrompt({
@@ -135,7 +120,7 @@ test("applyQueuedGoalProviderContextRewrites leaves an active user marker verbat
     timestamp: 1,
   });
   const latestHidden = goalCustomContextMessage({
-    content: compactContinuationPrompt(activeGoal),
+    content: continuationPrompt(activeGoal),
     details: { kind: "continuation", goalId: activeGoal.goalId },
     timestamp: 3,
   });
@@ -149,7 +134,8 @@ test("applyQueuedGoalProviderContextRewrites leaves an active user marker verbat
     },
   );
 
-  assert.equal(changed, true);
+  assert.equal(changed, false);
+  assert.deepEqual(messages[0], olderHidden);
   assert.deepEqual(messages[1]?.content, userMarker.content);
-  assert.match(String(userContentFromUnknown(messages[1]?.content)[0]?.text), /<untrusted_objective>/);
+  assert.deepEqual(messages[2], latestHidden);
 });

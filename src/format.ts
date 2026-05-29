@@ -8,7 +8,6 @@ const COMPACT_TOKEN_UNITS = [
 ] as const;
 
 export interface GoalToolRecord {
-  goalId: string;
   objective: string;
   status: GoalStatus;
   tokenBudget: number | null;
@@ -94,6 +93,9 @@ function commandHint(status: GoalStatus): string {
   if (status === "paused") {
     return "/goal resume, /goal clear";
   }
+  if (status === "blocked") {
+    return "/goal resume, /goal clear";
+  }
   if (status === "complete") {
     return "/goal <objective> to replace, /goal clear";
   }
@@ -157,6 +159,10 @@ export function formatFooterStatus(goal: ThreadGoal | null, recoveryAttention: s
     return "Goal paused (/goal resume)";
   }
 
+  if (goal.status === "blocked") {
+    return "Goal blocked (/goal resume)";
+  }
+
   if (goal.tokenBudget !== null) {
     return `Goal achieved (${formatCompactTokenValue(goal.usage.tokensUsed)} tokens)`;
   }
@@ -168,7 +174,6 @@ export function formatFooterStatus(goal: ThreadGoal | null, recoveryAttention: s
 
 export function toToolGoal(goal: ThreadGoal): GoalToolRecord {
   return {
-    goalId: goal.goalId,
     objective: goal.objective,
     status: goal.status,
     tokenBudget: goal.tokenBudget,

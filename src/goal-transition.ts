@@ -67,7 +67,7 @@ function memoryEffectsFromGoalChange(
     appendGoalTransitionEffectOnce(effects, { type: "clearContinuation" });
     appendGoalTransitionEffectOnce(effects, { type: "clearActiveAccounting" });
     appendGoalTransitionEffectOnce(effects, { type: "resetRecovery" });
-  } else if (next.status === "paused") {
+  } else if (next.status === "paused" || next.status === "blocked") {
     appendGoalTransitionEffectOnce(effects, { type: "clearContinuation" });
     appendGoalTransitionEffectOnce(effects, { type: "clearActiveAccounting" });
   } else if (next.status === "budgetLimited") {
@@ -88,16 +88,13 @@ function crossedBudgetTransition(current: ThreadGoal | null, nextGoal: ThreadGoa
 function commandAfterPersistEffects(
   current: ThreadGoal | null,
   nextGoal: ThreadGoal,
-  wasPausedBefore: boolean,
+  wasStoppedBefore: boolean,
 ): GoalTransitionEffect[] {
   const goalIdChanged = (current?.goalId ?? null) !== nextGoal.goalId;
   const effects: GoalTransitionEffect[] = [];
-  if (nextGoal.status === "active") {
-    effects.push({ type: "markContinuationQueued", goalId: nextGoal.goalId });
-  }
   if (nextGoal.status === "paused" && !goalIdChanged) {
     effects.push({ type: "resetRecovery" });
-  } else if (nextGoal.status === "active" && wasPausedBefore && !goalIdChanged) {
+  } else if (nextGoal.status === "active" && wasStoppedBefore && !goalIdChanged) {
     effects.push({ type: "resetRecovery" });
   }
   return effects;
@@ -235,7 +232,12 @@ function planDerivedResumeActiveTransition(
 ): GoalTransitionPlan {
   const kind = "resume_active";
   requireCurrentGoal(current, kind);
-  requireStatus(current, "paused", kind);
+  if (current.status !== "paused" && current.status !== "blocked") {
+    throw transitionInvariantError(
+      kind,
+      `current status must be paused or blocked (got ${current.status})`,
+    );
+  }
   const nextGoal = deriveGoalWithStatus(current, "active");
 
   return {
@@ -363,10 +365,10 @@ export function planGoalTransition(
 
     case "set": {
       const { nextGoal, source } = request;
-      const wasPausedBefore = current?.status === "paused";
+      const wasStoppedBefore = current?.status === "paused" || current?.status === "blocked";
       const afterPersist =
         source === "command"
-          ? commandAfterPersistEffects(current, nextGoal, wasPausedBefore)
+          ? commandAfterPersistEffects(current, nextGoal, wasStoppedBefore)
           : [];
       if (current && goalsEquivalent(current, nextGoal)) {
         return {
