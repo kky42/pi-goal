@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 1.0.2 - 2026-05-30
+
+- Prevents `/goal` argument autocomplete from injecting `pause`, `resume`, or `clear` into free-form goal objectives while preserving explicit subcommand completion.
+- Sends overflow-recovery goal continuations as user-started follow-ups when pi's host overflow cap needs a user turn, while keeping normal continuations hidden.
+- Makes headless `/goal <objective>` replace existing non-complete goals deterministically and drain scheduled goal continuations until the goal leaves `active`, instead of exiting without model output or after only the first turn.
+
 ## 1.0.1 - 2026-05-30
 
 - Exposes the extension through a root `index.ts` package entry so pi displays the installed package as `@kky42/pi-goal` instead of `@kky42/pi-goal:src`.

@@ -272,16 +272,9 @@ export function createRuntimeHarness(options: {
   async function emit(event: string, payload: object): Promise<unknown[]> {
     if (event === "message_start") {
       const message = (payload as {
-        message?: { role?: string; customType?: string; details?: unknown };
+        message?: { role?: string };
       }).message;
-      const details = message?.details as { kind?: unknown } | undefined;
-      const isGoalContinuation =
-        message?.role === "custom" &&
-        message.customType === CUSTOM_ENTRY_TYPE &&
-        (details?.kind === "continuation" ||
-          details?.kind === "command_start" ||
-          details?.kind === "command_resume");
-      if (message?.role === "user" || isGoalContinuation) {
+      if (message?.role === "user") {
         runtime.hostOverflowRecoveryAttempted = false;
       }
     }
@@ -380,6 +373,18 @@ export function queuedCustomMessage(sent: SentMessage, timestamp = 1): QueuedGoa
     content: sent.message.content,
     display: sent.message.display,
     details: sent.message.details,
+    timestamp,
+  };
+}
+
+export function queuedUserMessage(sent: SentUserMessage, timestamp = 1): QueuedGoalContextCarrier {
+  const content: QueuedGoalUserContent =
+    typeof sent.content === "string"
+      ? [{ type: "text", text: sent.content }]
+      : sent.content.flatMap((part) => (part.type === "text" ? [{ type: "text", text: part.text }] : []));
+  return {
+    role: "user",
+    content,
     timestamp,
   };
 }

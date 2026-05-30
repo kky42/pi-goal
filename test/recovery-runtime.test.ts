@@ -42,6 +42,7 @@ function createRecoveryTestRuntime(goal: ThreadGoal | null = activeGoal) {
     },
     requestContinuation: () => {
       continueCount += 1;
+      return true;
     },
   });
 
@@ -161,7 +162,7 @@ test("recovery pause delegates reason without clearing continuation in recovery 
     refreshUi: () => {
       refreshCount += 1;
     },
-    requestContinuation: () => {},
+    requestContinuation: () => false,
   });
 
   const ctx = { ui: { setStatus() {} } } as unknown as ExtensionContext;

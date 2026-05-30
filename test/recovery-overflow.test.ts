@@ -116,7 +116,9 @@ test("host overflow retry success resumes goal continuation after clearing recov
   });
 
   assert.equal(harness.snapshot().goal?.status, "active");
-  assert.equal(harness.sentMessages.length, 1);
+  assert.equal(harness.sentMessages.length, 0);
+  assert.equal(harness.sentUserMessages.length, 1);
+  assert.deepEqual(harness.sentUserMessages[0]?.options, { deliverAs: "followUp" });
 });
 
 test("repeated context length errors pause after host default overflow recovery", async () => {

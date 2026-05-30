@@ -71,6 +71,7 @@ export function onRecoverySuccessfulTurn(
     return false;
   }
   resetRecoveryCounters(state);
+  clearActiveHostOverflowRecovery(state);
   return true;
 }
 

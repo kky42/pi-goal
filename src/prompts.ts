@@ -36,6 +36,10 @@ export function continuationGoalIdFromPrompt(prompt: string): string | null {
   return prompt.slice(CONTINUATION_MARKER_PREFIX.length, end);
 }
 
+export function markedContinuationPrompt(goal: ThreadGoal): string {
+  return [`${CONTINUATION_MARKER_PREFIX}${goal.goalId}" />`, "", continuationPrompt(goal)].join("\n");
+}
+
 function formatOptionalTokenBudget(goal: ThreadGoal): string {
   return goal.tokenBudget === null ? "none" : formatTokenValue(goal.tokenBudget);
 }

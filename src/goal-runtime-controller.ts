@@ -27,7 +27,7 @@ export interface GoalRuntimeController extends GoalRuntimeEventHandlers {
   setGoal(goal: ThreadGoal, source: GoalEntrySource, ctx: ExtensionContext): void;
   clearGoal(source: GoalEntrySource, ctx: ExtensionContext): void;
   updateGoal(status: "complete" | "blocked", source: GoalEntrySource, ctx: ExtensionContext): GoalResult;
-  requestContinuation(ctx: ExtensionContext): void;
+  requestContinuation(ctx: ExtensionContext): boolean;
 }
 
 export function createGoalRuntimeController(pi: ExtensionAPI): GoalRuntimeController {

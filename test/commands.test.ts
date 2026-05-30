@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   handleGoalCommand,
+  registerGoalCommand,
   type CommandHost,
   type GoalCommandContext,
   type GoalCommandPi,
@@ -13,6 +14,9 @@ import type { GoalEntrySource, ThreadGoal } from "../src/types.js";
 function createHarness() {
   let goal: ThreadGoal | null = null;
   let continuationRequests = 0;
+  let waitForIdleCalls = 0;
+  let continuationRequestResult = false;
+  let onWaitForIdle: (() => void | Promise<void>) | null = null;
   const notifications: string[] = [];
 
   const pi: GoalCommandPi = {
@@ -29,6 +33,7 @@ function createHarness() {
     },
     requestContinuation() {
       continuationRequests += 1;
+      return continuationRequestResult;
     },
   };
 
@@ -40,6 +45,10 @@ function createHarness() {
       },
       confirm: async () => true,
       setStatus: () => {},
+    },
+    waitForIdle: async () => {
+      waitForIdleCalls += 1;
+      await onWaitForIdle?.();
     },
   };
 
@@ -57,11 +66,49 @@ function createHarness() {
     resetContinuationRequests() {
       continuationRequests = 0;
     },
+    resetWaitForIdleCalls() {
+      waitForIdleCalls = 0;
+    },
+    setContinuationRequestResult(result: boolean) {
+      continuationRequestResult = result;
+    },
+    setWaitForIdle(handler: (() => void | Promise<void>) | null) {
+      onWaitForIdle = handler;
+    },
     get continuationRequests() {
       return continuationRequests;
     },
+    get waitForIdleCalls() {
+      return waitForIdleCalls;
+    },
   };
 }
+
+test("/goal does not autocomplete subcommands for free-form objectives", () => {
+  const harness = createHarness();
+  const captured: {
+    getArgumentCompletions: ((argumentPrefix: string) => unknown) | null;
+  } = { getArgumentCompletions: null };
+  const pi: GoalCommandPi = {
+    registerCommand(_name, options) {
+      captured.getArgumentCompletions = options.getArgumentCompletions ?? null;
+    },
+  };
+
+  registerGoalCommand(pi, harness.host);
+
+  const getArgumentCompletions = captured.getArgumentCompletions;
+  assert.ok(getArgumentCompletions);
+  assert.equal(getArgumentCompletions(""), null);
+  assert.equal(getArgumentCompletions("count from 1 to 5"), null);
+  assert.deepEqual(getArgumentCompletions("p"), [
+    {
+      value: "pause",
+      label: "pause",
+      description: "goal pause",
+    },
+  ]);
+});
 
 test("/goal objective creates the goal and requests scheduler continuation", async () => {
   const harness = createHarness();
@@ -99,6 +146,29 @@ test("/goal resume requests scheduler continuation", async () => {
 
   assert.equal(harness.goal?.status, "active");
   assert.equal(harness.continuationRequests, 1);
+});
+
+test("/goal resume waits for scheduled continuation in headless mode", async () => {
+  const harness = createHarness();
+
+  await handleGoalCommand(harness.pi, harness.host, "ship the feature", harness.ctx);
+  const paused = updateGoalStatus(harness.goal, "paused").goal;
+  assert.ok(paused);
+  harness.resetContinuationRequests();
+  harness.resetWaitForIdleCalls();
+  harness.setGoal(paused);
+  harness.ctx.hasUI = false;
+  harness.setWaitForIdle(() => {
+    const completed = updateGoalStatus(harness.goal, "complete").goal;
+    assert.ok(completed);
+    harness.setGoal(completed);
+  });
+
+  await handleGoalCommand(harness.pi, harness.host, "resume", harness.ctx);
+
+  assert.equal(harness.goal?.status, "complete");
+  assert.equal(harness.continuationRequests, 1);
+  assert.equal(harness.waitForIdleCalls, 1);
 });
 
 test("/goal objective always uses the scheduler-owned continuation path", async () => {
@@ -177,6 +247,50 @@ test("/goal objective replaces a completed goal without confirmation", async () 
   assert.equal(harness.goal?.status, "active");
   assert.notEqual(harness.goal?.goalId, completed.goalId);
   assert.equal(harness.continuationRequests, 1);
+});
+
+test("/goal objective replaces non-complete goals in headless mode and waits for continuation", async () => {
+  const harness = createHarness();
+
+  await handleGoalCommand(harness.pi, harness.host, "old objective", harness.ctx);
+  const previousGoalId = harness.goal?.goalId;
+  assert.ok(previousGoalId);
+  harness.resetContinuationRequests();
+  harness.resetWaitForIdleCalls();
+  harness.ctx.hasUI = false;
+  harness.setWaitForIdle(() => {
+    const completed = updateGoalStatus(harness.goal, "complete").goal;
+    assert.ok(completed);
+    harness.setGoal(completed);
+  });
+
+  await handleGoalCommand(harness.pi, harness.host, "new objective", harness.ctx);
+
+  assert.equal(harness.goal?.objective, "new objective");
+  assert.equal(harness.goal?.status, "complete");
+  assert.notEqual(harness.goal?.goalId, previousGoalId);
+  assert.equal(harness.continuationRequests, 1);
+  assert.equal(harness.waitForIdleCalls, 1);
+});
+
+test("/goal objective drains scheduled headless continuations until the goal is terminal", async () => {
+  const harness = createHarness();
+  harness.ctx.hasUI = false;
+  harness.setContinuationRequestResult(true);
+  harness.setWaitForIdle(() => {
+    if (harness.waitForIdleCalls !== 3) {
+      return;
+    }
+    const completed = updateGoalStatus(harness.goal, "complete").goal;
+    assert.ok(completed);
+    harness.setGoal(completed);
+  });
+
+  await handleGoalCommand(harness.pi, harness.host, "count to 3", harness.ctx);
+
+  assert.equal(harness.goal?.status, "complete");
+  assert.equal(harness.continuationRequests, 3);
+  assert.equal(harness.waitForIdleCalls, 3);
 });
 
 test("/goal resume does not restart an over-budget budget-limited goal", async () => {

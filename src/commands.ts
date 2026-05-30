@@ -8,7 +8,7 @@ export interface CommandHost {
   getGoal(): ThreadGoal | null;
   setGoal(goal: ThreadGoal, source: GoalEntrySource, ctx: GoalCommandContext): void;
   clearGoal(source: GoalEntrySource, ctx: GoalCommandContext): void;
-  requestContinuation(ctx: GoalCommandContext): void;
+  requestContinuation(ctx: GoalCommandContext): boolean;
 }
 
 const COMMANDS = ["pause", "resume", "clear"] as const;
@@ -19,14 +19,38 @@ export type GoalCommandPi = Pick<ExtensionAPI, "registerCommand">;
 export interface GoalCommandContext {
   hasUI: boolean;
   ui: Pick<ExtensionCommandContext["ui"], "confirm" | "notify" | "setStatus">;
+  waitForIdle?: ExtensionCommandContext["waitForIdle"];
 }
 
-function completions(prefix: string) {
-  return COMMANDS.filter((command) => command.startsWith(prefix)).map((command) => ({
+async function waitForHeadlessContinuationDrain(
+  host: CommandHost,
+  ctx: GoalCommandContext,
+): Promise<void> {
+  if (ctx.hasUI || !ctx.waitForIdle) {
+    return;
+  }
+  while (host.getGoal()?.status === "active") {
+    await ctx.waitForIdle();
+    if (host.getGoal()?.status !== "active") {
+      return;
+    }
+    if (!host.requestContinuation(ctx)) {
+      return;
+    }
+  }
+}
+
+function completions(argumentPrefix: string) {
+  const prefix = argumentPrefix.trim();
+  if (prefix.length === 0 || /\s/.test(argumentPrefix)) {
+    return null;
+  }
+  const items = COMMANDS.filter((command) => command.startsWith(prefix)).map((command) => ({
     value: command,
     label: command,
     description: `goal ${command}`,
   }));
+  return items.length > 0 ? items : null;
 }
 
 export async function handleGoalCommand(
@@ -64,16 +88,13 @@ export async function handleGoalCommand(
     ctx.ui.notify(result.message);
     if (trimmed === "resume" && result.goal.status === "active") {
       host.requestContinuation(ctx);
+      await waitForHeadlessContinuationDrain(host, ctx);
     }
     return;
   }
 
   const current = host.getGoal();
-  if (current && current.status !== "complete") {
-    if (!ctx.hasUI) {
-      ctx.ui.notify("Clear the existing goal before replacing it.", "error");
-      return;
-    }
+  if (current && current.status !== "complete" && ctx.hasUI) {
     const shouldReplace = await ctx.ui.confirm(
       "Replace goal?",
       `Current goal:\n${current.objective}\n\nNew goal:\n${trimmed}`,
@@ -92,13 +113,14 @@ export async function handleGoalCommand(
   host.setGoal(result.goal, "command", ctx);
   ctx.ui.notify([GOLDEN_SET_BANNER, formatGoalSummary(result.goal)].join("\n"));
   host.requestContinuation(ctx);
+  await waitForHeadlessContinuationDrain(host, ctx);
 }
 
 export function registerGoalCommand(pi: GoalCommandPi, host: CommandHost): void {
   pi.registerCommand("goal", {
     description: "Show or manage the current Codex-style goal.",
     getArgumentCompletions(argumentPrefix) {
-      return completions(argumentPrefix.trim());
+      return completions(argumentPrefix);
     },
     async handler(args: string, ctx: ExtensionCommandContext) {
       await handleGoalCommand(pi, host, args, ctx);

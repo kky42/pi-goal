@@ -436,6 +436,73 @@ test(
 );
 
 test(
+  "real pi headless prompt drains goal continuations until completion",
+  { skip: REAL_E2E_ENABLED ? false : "set PI_GOAL_REAL_E2E=1 to run provider-backed pi e2e", timeout: 180_000 },
+  async () => {
+    const sessionRoot = await mkdtemp(path.join(tmpdir(), "pi-goal-headless-e2e-"));
+    try {
+      const result = await runProcess(
+        "pi",
+        [
+          "-p",
+          "--model",
+          MODEL,
+          "--thinking",
+          THINKING,
+          "--session-dir",
+          path.join(sessionRoot, "sessions"),
+          "--no-extensions",
+          "--extension",
+          EXTENSION_PATH,
+          "--no-skills",
+          "--no-prompt-templates",
+          "--no-themes",
+          "--no-context-files",
+          "--no-builtin-tools",
+          "/goal Count visibly from 1 to 3. Each assistant turn must contain exactly one visible number, starting with 1 and increasing by 1. Do not combine numbers. After emitting a number less than 3, stop. When you have emitted 3, call update_goal with status complete.",
+        ],
+        { timeoutMs: 180_000 },
+      );
+
+      assert.notEqual(result.stdout.trim(), "");
+      assert.notEqual(result.stdout.trim(), "1");
+
+      const files = await findSessionFiles(sessionRoot);
+      const sessionFile = files.at(-1);
+      assert.ok(sessionFile, "headless prompt should create a persisted session");
+      const entries = await readSessionEntries(sessionFile);
+      const messages = sessionMessages(entries);
+      const texts = messages
+        .filter((message) => message.role === "assistant")
+        .map((message) => textFromMessage(message).trim())
+        .filter(Boolean);
+
+      assert.ok(texts.includes("1"), `expected first goal turn to emit 1, got ${JSON.stringify(texts)}`);
+      assert.ok(texts.includes("2"), `expected second goal turn to emit 2, got ${JSON.stringify(texts)}`);
+      assert.ok(
+        texts.some((text) => /^3\b/.test(text)),
+        `expected a later goal turn to emit 3, got ${JSON.stringify(texts)}`,
+      );
+      assert.ok(
+        entries.some((entry) => {
+          return (
+            entry.type === "custom" &&
+            entry.customType === CUSTOM_ENTRY_TYPE &&
+            isObject(entry.data) &&
+            entry.data.kind === "set" &&
+            isObject(entry.data.goal) &&
+            entry.data.goal.status === "complete"
+          );
+        }),
+        "headless goal should persist a complete goal",
+      );
+    } finally {
+      await rm(sessionRoot, { recursive: true, force: true });
+    }
+  },
+);
+
+test(
   "real pi tmux interactive goal continuation hides goal ids in persisted prompts",
   { skip: REAL_E2E_ENABLED ? false : "set PI_GOAL_REAL_E2E=1 to run provider-backed pi e2e", timeout: 180_000 },
   async () => {

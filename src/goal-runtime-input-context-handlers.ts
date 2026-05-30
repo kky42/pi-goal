@@ -130,7 +130,6 @@ export function createInputContextEventHandlers(
 
       continuation.clearContinuationStateFor(queuedGoalId);
       if (stateController.isCurrentActiveGoalId(queuedGoalId)) {
-        stateController.persistHostOverflowUserReset(false);
         runtimeState.staleQueuedWorkGuard.noteRunnableWorkStarted();
         if (isCommandResumeQueuedGoalMessage(event.message)) {
           resetErrorRecovery();

@@ -54,7 +54,7 @@ export interface GoalRuntimeContinuationPort {
   clearPassthroughContinuationInput: () => void;
   continuationGoalIdFromRuntimePrompt: (prompt: string) => string | null;
   notePassthroughContinuationInput: (input: string) => void;
-  requestContinuation: (ctx: ExtensionContext) => void;
+  requestContinuation: (ctx: ExtensionContext) => boolean;
 }
 
 export interface GoalAccountingPort {

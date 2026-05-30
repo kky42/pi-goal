@@ -1,7 +1,8 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 
-import { continuationGoalIdFromPrompt, continuationPrompt } from "./prompts.js";
+import { continuationGoalIdFromPrompt, continuationPrompt, markedContinuationPrompt } from "./prompts.js";
 import {
+  goalStartTurnStrategy,
   recoveryPhaseBlocksContinuation,
   type GoalRecoveryMachineState,
 } from "./recovery-machine.js";
@@ -11,7 +12,7 @@ import type { StaleQueuedWorkGuard } from "./stale-queued-work-guard.js";
 import { CUSTOM_ENTRY_TYPE, type ThreadGoal } from "./types.js";
 
 interface ContinuationSchedulerDeps {
-  pi: Pick<ExtensionAPI, "sendMessage">;
+  pi: Pick<ExtensionAPI, "sendMessage" | "sendUserMessage">;
   getGoal: () => ThreadGoal | null;
   getRecoveryState: () => GoalRecoveryMachineState;
   staleQueuedWorkGuard: StaleQueuedWorkGuard;
@@ -96,6 +97,10 @@ export function createContinuationScheduler(deps: ContinuationSchedulerDeps) {
 
   const sendContinuation = (goalToContinue: ThreadGoal): void => {
     continuationQueuedFor = goalToContinue.goalId;
+    if (goalStartTurnStrategy(deps.getRecoveryState().phase) === "userFollowUp") {
+      deps.pi.sendUserMessage(markedContinuationPrompt(goalToContinue), { deliverAs: "followUp" });
+      return;
+    }
     deps.pi.sendMessage(
       {
         customType: CUSTOM_ENTRY_TYPE,
@@ -107,17 +112,20 @@ export function createContinuationScheduler(deps: ContinuationSchedulerDeps) {
     );
   };
 
-  const requestContinuation = (ctx: ExtensionContext): void => {
+  const requestContinuation = (ctx: ExtensionContext): boolean => {
     const goal = deps.getGoal();
     if (
       deps.staleQueuedWorkGuard.isBlockingContinuation() ||
       !goal ||
       goal.status !== "active" ||
-      continuationQueuedFor === goal.goalId ||
       hasPendingRecoveryAttention() ||
       recoveryPhaseBlocksContinuation(deps.getRecoveryState().phase)
     ) {
-      return;
+      return false;
+    }
+
+    if (continuationQueuedFor === goal.goalId) {
+      return true;
     }
 
     const goalId = goal.goalId;
@@ -125,12 +133,12 @@ export function createContinuationScheduler(deps: ContinuationSchedulerDeps) {
       if (continuationScheduledFor === goalId) {
         clearContinuationTimer();
       }
-      return;
+      return false;
     }
 
     if (!ctx.isIdle()) {
       if (continuationScheduledFor === goalId) {
-        return;
+        return true;
       }
       continuationScheduledFor = goalId;
       continuationTimer = setTimeout(() => {
@@ -139,7 +147,7 @@ export function createContinuationScheduler(deps: ContinuationSchedulerDeps) {
         requestContinuation(ctx);
       }, CONTINUATION_RETRY_MS);
       continuationTimer.unref?.();
-      return;
+      return true;
     }
 
     clearContinuationTimer();
@@ -155,9 +163,10 @@ export function createContinuationScheduler(deps: ContinuationSchedulerDeps) {
       hasPendingRecoveryAttention() ||
       recoveryPhaseBlocksContinuation(deps.getRecoveryState().phase)
     ) {
-      return;
+      return false;
     }
     sendContinuation(currentGoal);
+    return true;
   };
 
   return {
