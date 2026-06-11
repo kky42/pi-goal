@@ -14,7 +14,6 @@ import {
 
 export interface ApplyUsageOptions {
   expectedGoalId?: string | null;
-  accountBudgetLimited?: boolean;
 }
 
 export function unixSeconds(): number {
@@ -33,7 +32,6 @@ export function goalsEquivalent(left: ThreadGoal, right: ThreadGoal): boolean {
     left.goalId === right.goalId &&
     left.objective === right.objective &&
     left.status === right.status &&
-    left.tokenBudget === right.tokenBudget &&
     left.createdAt === right.createdAt &&
     left.updatedAt === right.updatedAt &&
     left.usage.tokensUsed === right.usage.tokensUsed &&
@@ -52,29 +50,15 @@ export function validateObjective(objective: string): string | null {
   return null;
 }
 
-export function validateTokenBudget(tokenBudget: number | null | undefined): string | null {
-  if (tokenBudget === null || tokenBudget === undefined) {
-    return null;
-  }
-  if (!Number.isInteger(tokenBudget) || tokenBudget <= 0) {
-    return "Token budget must be a positive integer.";
-  }
-  return null;
-}
-
-export function statusAfterBudgetLimit(status: GoalStatus, tokensUsed: number, tokenBudget: number | null): GoalStatus {
-  if (status === "active" && tokenBudget !== null && tokensUsed >= tokenBudget) {
-    return "budgetLimited";
-  }
-  return status;
-}
-
-export function createThreadGoal(objective: string, tokenBudget?: number | null, now = unixSeconds()): ThreadGoal {
+export function createThreadGoal(
+  objective: string,
+  _legacyTokenBudget?: number | null,
+  now = unixSeconds(),
+): ThreadGoal {
   return {
     goalId: randomUUID(),
     objective: objective.trim(),
     status: "active",
-    tokenBudget: tokenBudget ?? null,
     usage: {
       tokensUsed: 0,
       activeSeconds: 0,
@@ -143,7 +127,6 @@ export function isThreadGoal(goal: unknown): goal is ThreadGoal {
     typeof candidate.goalId === "string" &&
     typeof candidate.objective === "string" &&
     isGoalStatus(candidate.status) &&
-    (candidate.tokenBudget === null || typeof candidate.tokenBudget === "number") &&
     typeof candidate.createdAt === "number" &&
     typeof candidate.updatedAt === "number" &&
     candidate.usage !== undefined &&
@@ -153,13 +136,7 @@ export function isThreadGoal(goal: unknown): goal is ThreadGoal {
 }
 
 export function isGoalStatus(status: unknown): status is GoalStatus {
-  return (
-    status === "active" ||
-    status === "paused" ||
-    status === "blocked" ||
-    status === "budgetLimited" ||
-    status === "complete"
-  );
+  return status === "active" || status === "paused" || status === "blocked" || status === "complete";
 }
 
 export function reconstructGoal(entries: Iterable<SessionEntryLike>): GoalSnapshot {
@@ -203,7 +180,11 @@ export function reconstructHostOverflowCapNeedsUserReset(entries: Iterable<Sessi
   return needsReset;
 }
 
-export function createGoal(current: ThreadGoal | null, objective: string, tokenBudget?: number | null): GoalResult {
+export function createGoal(
+  current: ThreadGoal | null,
+  objective: string,
+  _legacyTokenBudget?: number | null,
+): GoalResult {
   if (current && current.status !== "complete") {
     return {
       ok: false,
@@ -218,12 +199,7 @@ export function createGoal(current: ThreadGoal | null, objective: string, tokenB
     return { ok: false, message: objectiveError, goal: null };
   }
 
-  const budgetError = validateTokenBudget(tokenBudget);
-  if (budgetError) {
-    return { ok: false, message: budgetError, goal: null };
-  }
-
-  const goal = createThreadGoal(objective, tokenBudget);
+  const goal = createThreadGoal(objective);
   return {
     ok: true,
     message: "Goal created.",
@@ -231,18 +207,13 @@ export function createGoal(current: ThreadGoal | null, objective: string, tokenB
   };
 }
 
-export function replaceGoal(objective: string, tokenBudget?: number | null): GoalResult {
+export function replaceGoal(objective: string, _legacyTokenBudget?: number | null): GoalResult {
   const objectiveError = validateObjective(objective);
   if (objectiveError) {
     return { ok: false, message: objectiveError, goal: null };
   }
 
-  const budgetError = validateTokenBudget(tokenBudget);
-  if (budgetError) {
-    return { ok: false, message: budgetError, goal: null };
-  }
-
-  const goal = createThreadGoal(objective, tokenBudget);
+  const goal = createThreadGoal(objective);
   return {
     ok: true,
     message: "Goal set.",
@@ -310,14 +281,6 @@ export function updateGoalStatus(current: ThreadGoal | null, status: GoalStatus)
     };
   }
 
-  if (status === "active" && current.status === "budgetLimited") {
-    return {
-      ok: false,
-      message: "Budget-limited goals are system-controlled and cannot be resumed.",
-      goal: current,
-    };
-  }
-
   if (status === "active" && current.status !== "paused" && current.status !== "blocked") {
     return {
       ok: false,
@@ -327,7 +290,7 @@ export function updateGoalStatus(current: ThreadGoal | null, status: GoalStatus)
   }
 
   const goal = cloneGoal(current);
-  goal.status = statusAfterBudgetLimit(status, goal.usage.tokensUsed, goal.tokenBudget);
+  goal.status = status;
   goal.updatedAt = unixSeconds();
 
   return {
@@ -342,8 +305,8 @@ export function applyUsage(
   tokensDelta: number,
   activeSecondsDelta: number,
   options: ApplyUsageOptions = {},
-): { goal: ThreadGoal | null; changed: boolean; crossedBudget: boolean } {
-  if (!current) {
+): { goal: ThreadGoal | null; changed: boolean; crossedBudget: false } {
+  if (!current || current.status !== "active") {
     return { goal: current, changed: false, crossedBudget: false };
   }
 
@@ -355,12 +318,6 @@ export function applyUsage(
     return { goal: current, changed: false, crossedBudget: false };
   }
 
-  const canAccount =
-    current.status === "active" || (options.accountBudgetLimited === true && current.status === "budgetLimited");
-  if (!canAccount) {
-    return { goal: current, changed: false, crossedBudget: false };
-  }
-
   const tokens = Math.max(0, Math.trunc(tokensDelta));
   const seconds = Math.max(0, Math.trunc(activeSecondsDelta));
   if (tokens === 0 && seconds === 0) {
@@ -368,19 +325,11 @@ export function applyUsage(
   }
 
   const goal = cloneGoal(current);
-  const wasUnderBudget = goal.tokenBudget === null || goal.usage.tokensUsed < goal.tokenBudget;
   goal.usage.tokensUsed += tokens;
   goal.usage.activeSeconds += seconds;
-  goal.status = statusAfterBudgetLimit(goal.status, goal.usage.tokensUsed, goal.tokenBudget);
   goal.updatedAt = unixSeconds();
 
-  const crossedBudget =
-    current.status === "active" &&
-    wasUnderBudget &&
-    goal.tokenBudget !== null &&
-    goal.usage.tokensUsed >= goal.tokenBudget;
-
-  return { goal, changed: true, crossedBudget };
+  return { goal, changed: true, crossedBudget: false };
 }
 
 export function goalWithLiveUsage(

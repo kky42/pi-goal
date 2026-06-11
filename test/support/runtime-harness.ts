@@ -272,9 +272,11 @@ export function createRuntimeHarness(options: {
   async function emit(event: string, payload: object): Promise<unknown[]> {
     if (event === "message_start") {
       const message = (payload as {
-        message?: { role?: string };
+        message?: { role?: string; details?: { kind?: string } };
       }).message;
-      if (message?.role === "user") {
+      const isCommandGoalStart =
+        message?.details?.kind === "command_start" || message?.details?.kind === "command_resume";
+      if (message?.role === "user" || isCommandGoalStart) {
         runtime.hostOverflowRecoveryAttempted = false;
       }
     }

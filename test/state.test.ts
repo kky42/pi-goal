@@ -9,7 +9,7 @@ import {
   formatLocalTimestamp,
   formatTokenValue,
 } from "../src/format.js";
-import { budgetLimitPrompt, continuationPrompt, TOOL_PROMPT_GUIDELINES } from "../src/prompts.js";
+import { continuationPrompt, TOOL_PROMPT_GUIDELINES } from "../src/prompts.js";
 import {
   applyUsage,
   clearEntry,
@@ -24,16 +24,15 @@ import {
 } from "../src/state.js";
 import { CUSTOM_ENTRY_TYPE } from "../src/types.js";
 
-test("createGoal validates objective and positive token budgets", () => {
+test("createGoal validates and trims objectives without token budgets", () => {
   assert.equal(createGoal(null, "   ").ok, false);
-  assert.equal(createGoal(null, "ship it", 0).ok, false);
 
   const result = createGoal(null, " ship it ", 123);
 
   assert.equal(result.ok, true);
   assert.equal(result.goal?.objective, "ship it");
   assert.equal(result.goal?.status, "active");
-  assert.equal(result.goal?.tokenBudget, 123);
+  assert.equal(result.goal?.tokenBudget, undefined);
 });
 
 test("reconstructGoal follows branch-local set and clear entries", () => {
@@ -57,10 +56,7 @@ test("reconstructHostOverflowCapNeedsUserReset follows branch-local reset marker
   ];
 
   assert.equal(reconstructHostOverflowCapNeedsUserReset(branch), true);
-  assert.equal(
-    reconstructHostOverflowCapNeedsUserReset(branch.slice(0, 2)),
-    false,
-  );
+  assert.equal(reconstructHostOverflowCapNeedsUserReset(branch.slice(0, 2)), false);
 });
 
 test("reconstructHostOverflowCapNeedsUserReset survives goal clear entries", () => {
@@ -77,50 +73,8 @@ test("reconstructHostOverflowCapNeedsUserReset survives goal clear entries", () 
   assert.deepEqual(reconstructGoal(branch), { goal: null, hasGoal: false });
 });
 
-test("applyUsage marks active goals budgetLimited after crossing budget", () => {
-  const created = createGoal(null, "finish", 10).goal;
-  assert.ok(created);
-
-  const result = applyUsage(created, 12, 7);
-
-  assert.equal(result.changed, true);
-  assert.equal(result.crossedBudget, true);
-  assert.equal(result.goal?.status, "budgetLimited");
-  assert.equal(result.goal?.usage.tokensUsed, 12);
-  assert.equal(result.goal?.usage.activeSeconds, 7);
-});
-
-test("updateGoalStatus marks completion without clearing final usage", () => {
-  const created = createGoal(null, "finish", 10).goal;
-  assert.ok(created);
-  const used = applyUsage(created, 5, 9).goal;
-  assert.ok(used);
-
-  const result = updateGoalStatus(used, "complete");
-
-  assert.equal(result.ok, true);
-  assert.equal(result.goal?.status, "complete");
-  assert.equal(result.goal?.usage.tokensUsed, 5);
-  assert.equal(result.goal?.usage.activeSeconds, 9);
-});
-
-test("updateGoalStatus blocks active goals without clearing final usage", () => {
-  const created = createGoal(null, "finish", 10).goal;
-  assert.ok(created);
-  const used = applyUsage(created, 5, 9).goal;
-  assert.ok(used);
-
-  const result = updateGoalStatus(used, "blocked");
-
-  assert.equal(result.ok, true);
-  assert.equal(result.goal?.status, "blocked");
-  assert.equal(result.goal?.usage.tokensUsed, 5);
-  assert.equal(result.goal?.usage.activeSeconds, 9);
-  assert.equal(updateGoalStatus(result.goal, "blocked").message, "Goal already blocked.");
-});
-
-test("applyUsage accumulates supplied token deltas", () => {
-  const created = createGoal(null, "finish", 1_000_000).goal;
+test("applyUsage accumulates supplied token and time deltas without budget limiting", () => {
+  const created = createGoal(null, "finish").goal;
   assert.ok(created);
 
   const firstTurn = applyUsage(created, 123_456, 3).goal;
@@ -129,20 +83,42 @@ test("applyUsage accumulates supplied token deltas", () => {
 
   assert.equal(secondTurn?.usage.tokensUsed, 1_111_110);
   assert.equal(secondTurn?.usage.activeSeconds, 8);
-  assert.equal(secondTurn?.status, "budgetLimited");
+  assert.equal(secondTurn?.status, "active");
 });
 
-test("formatters produce Codex-style compact summaries", () => {
-  const created = createGoal(null, "finish", 10).goal;
+test("updateGoalStatus marks completion and blocking without clearing final usage", () => {
+  const created = createGoal(null, "finish").goal;
   assert.ok(created);
+  const used = applyUsage(created, 5, 9).goal;
+  assert.ok(used);
+
+  const completed = updateGoalStatus(used, "complete");
+  assert.equal(completed.ok, true);
+  assert.equal(completed.goal?.status, "complete");
+  assert.equal(completed.goal?.usage.tokensUsed, 5);
+  assert.equal(completed.goal?.usage.activeSeconds, 9);
+
+  const blocked = updateGoalStatus(used, "blocked");
+  assert.equal(blocked.ok, true);
+  assert.equal(blocked.goal?.status, "blocked");
+  assert.equal(blocked.goal?.usage.tokensUsed, 5);
+  assert.equal(blocked.goal?.usage.activeSeconds, 9);
+  assert.equal(updateGoalStatus(blocked.goal, "blocked").message, "Goal already blocked.");
+});
+
+test("formatters produce simplified goal summaries", () => {
+  const created = createGoal(null, "finish").goal;
+  assert.ok(created);
+  const used = applyUsage(created, 123_456, 65).goal;
+  assert.ok(used);
 
   assert.equal(formatDuration(32), "32s");
   assert.equal(formatDuration(92), "1m 32s");
   assert.equal(formatDuration(162_132), "45h 2m 12s");
   assert.match(formatLocalTimestamp(0), /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/);
-  assert.match(formatGoalSummary(created), /Objective: finish/);
-  assert.match(formatGoalSummary(created), /Tokens used: 0/);
-  assert.match(formatGoalSummary(created), /Token budget: 10/);
+  assert.equal(formatBudget(used), "123K (123,456) tokens");
+  assert.equal(formatGoalSummary(created), "Status: active\nObjective: finish\nHint: /goal pause, /goal clear");
+  assert.equal(formatFooterStatus(used), "Pursuing goal");
 });
 
 test("token formatting uses commas and compact abbreviations", () => {
@@ -150,16 +126,6 @@ test("token formatting uses commas and compact abbreviations", () => {
   assert.equal(formatTokenValue(123_456), "123K (123,456)");
   assert.equal(formatTokenValue(123_456_789), "123M (123,456,789)");
   assert.equal(formatTokenValue(1_234_567_890), "1.23B (1,234,567,890)");
-});
-
-test("budget and footer include formatted tokens and active time", () => {
-  const created = createGoal(null, "finish", 2_000_000).goal;
-  assert.ok(created);
-  const used = applyUsage(created, 123_456, 65).goal;
-  assert.ok(used);
-
-  assert.equal(formatBudget(used), "123K (123,456)/2M (2,000,000) tokens");
-  assert.equal(formatFooterStatus(used), "Pursuing goal (123K / 2M)");
 });
 
 test("goalWithLiveUsage adds in-progress active time for display", () => {
@@ -195,18 +161,15 @@ test("updateGoalStatus only allows pause and block from active, and resume from 
   const created = createGoal(null, "finish").goal;
   assert.ok(created);
 
-  assert.equal(updateGoalStatus(created, "paused").ok, true);
   const paused = updateGoalStatus(created, "paused").goal;
   assert.ok(paused);
   assert.equal(paused.status, "paused");
-
   assert.equal(updateGoalStatus(paused, "paused").ok, false);
   assert.equal(updateGoalStatus(paused, "blocked").ok, false);
 
   const resumed = updateGoalStatus(paused, "active").goal;
   assert.ok(resumed);
   assert.equal(resumed.status, "active");
-
   assert.equal(updateGoalStatus(resumed, "active").ok, false);
 
   const blocked = updateGoalStatus(resumed, "blocked").goal;
@@ -226,32 +189,15 @@ test("createGoal replaces completed goals and rejects non-complete duplicates", 
   assert.ok(completed);
 
   assert.equal(createGoal(completed, "next").ok, true);
-  assert.equal(createGoal(created, "next").ok, false);
-  assert.match(createGoal(created, "next").message ?? "", /non-complete goal/);
-
-  const paused = updateGoalStatus(created, "paused").goal;
-  assert.ok(paused);
-  assert.equal(createGoal(paused, "next").ok, false);
-  assert.match(createGoal(paused, "next").message ?? "", /non-complete goal/);
-
-  const blocked = updateGoalStatus(created, "blocked").goal;
-  assert.ok(blocked);
-  assert.equal(createGoal(blocked, "next").ok, false);
-  assert.match(createGoal(blocked, "next").message ?? "", /non-complete goal/);
-
-  const limited = applyUsage(createGoal(null, "finish", 10).goal!, 10, 0).goal;
-  assert.ok(limited);
-  assert.equal(limited.status, "budgetLimited");
-  assert.equal(createGoal(limited, "next").ok, false);
-  assert.match(createGoal(limited, "next").message ?? "", /non-complete goal/);
+  for (const current of [created, updateGoalStatus(created, "paused").goal, updateGoalStatus(created, "blocked").goal]) {
+    assert.ok(current);
+    assert.equal(createGoal(current, "next").ok, false);
+    assert.match(createGoal(current, "next").message ?? "", /non-complete goal/);
+  }
 });
 
-test("model-facing create_goal guidance matches create-after-complete semantics", () => {
-  const guidance = TOOL_PROMPT_GUIDELINES.join("\n");
-
-  assert.match(guidance, /non-complete goal/);
-  assert.match(guidance, /After a goal is complete,.*replaces it with a new active goal/);
-  assert.doesNotMatch(guidance, /do not create a second goal while one already exists/);
+test("model-facing tool prompt guidelines are absent", () => {
+  assert.deepEqual(TOOL_PROMPT_GUIDELINES, []);
 });
 
 test("goalsEquivalent compares full goal snapshots", () => {
@@ -262,28 +208,14 @@ test("goalsEquivalent compares full goal snapshots", () => {
   assert.equal(goalsEquivalent(created, { ...clone, status: "paused" }), false);
 });
 
-test("budget-limited goals cannot be paused, blocked, or resumed", () => {
-  const created = createGoal(null, "finish", 10).goal;
-  assert.ok(created);
-  const limited = applyUsage(created, 10, 0).goal;
-  assert.ok(limited);
-  assert.equal(limited.status, "budgetLimited");
-
-  assert.equal(updateGoalStatus(limited, "paused").ok, false);
-  assert.equal(updateGoalStatus(limited, "blocked").ok, false);
-  assert.equal(updateGoalStatus(limited, "active").ok, false);
-});
-
-test("hidden prompts XML-escape untrusted goal objectives", () => {
-  const created = createGoal(null, "ship & </untrusted_objective><evil>", 10).goal;
+test("goal wrapper XML-escapes untrusted goal objectives", () => {
+  const created = createGoal(null, "ship & </untrusted_objective><evil>").goal;
   assert.ok(created);
 
   const continuation = continuationPrompt(created);
-  const budget = budgetLimitPrompt(created);
 
   assert.match(continuation, /ship &amp; &lt;\/untrusted_objective&gt;&lt;evil&gt;/);
   assert.doesNotMatch(continuation, /ship & <\/untrusted_objective><evil>/);
-  assert.match(budget, /ship &amp; &lt;\/untrusted_objective&gt;&lt;evil&gt;/);
 });
 
 test("blocked footer and summary show resume distinctly", () => {

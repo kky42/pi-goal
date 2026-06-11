@@ -2,14 +2,14 @@ import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-c
 
 import { formatGoalSummary } from "./format.js";
 import { replaceGoal, updateGoalStatus } from "./state.js";
-import type { GoalEntrySource, ThreadGoal } from "./types.js";
+import type { GoalContinuationKind, GoalEntrySource, ThreadGoal } from "./types.js";
 
 export interface CommandHost {
   getGoal(): ThreadGoal | null;
   setGoal(goal: ThreadGoal, source: GoalEntrySource, ctx: GoalCommandContext): void;
   clearGoal(source: GoalEntrySource, ctx: GoalCommandContext): void;
   hasPendingPostTurnWork?(): boolean;
-  requestContinuation(ctx: GoalCommandContext): boolean;
+  requestContinuation(ctx: GoalCommandContext, kind?: GoalContinuationKind): boolean;
 }
 
 const COMMANDS = ["pause", "resume", "clear"] as const;
@@ -93,7 +93,7 @@ export async function handleGoalCommand(
     host.setGoal(result.goal, "command", ctx);
     ctx.ui.notify(result.message);
     if (trimmed === "resume" && result.goal.status === "active") {
-      host.requestContinuation(ctx);
+      host.requestContinuation(ctx, "command_resume");
       await waitForHeadlessContinuationDrain(host, ctx);
     }
     return;
@@ -117,8 +117,8 @@ export async function handleGoalCommand(
     return;
   }
   host.setGoal(result.goal, "command", ctx);
-  ctx.ui.notify([GOLDEN_SET_BANNER, formatGoalSummary(result.goal)].join("\n"));
-  host.requestContinuation(ctx);
+  ctx.ui.notify(GOLDEN_SET_BANNER);
+  host.requestContinuation(ctx, "command_start");
   await waitForHeadlessContinuationDrain(host, ctx);
 }
 

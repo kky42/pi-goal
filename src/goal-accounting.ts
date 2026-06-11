@@ -1,13 +1,11 @@
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 
-import { budgetLimitPrompt } from "./prompts.js";
 import { applyUsage } from "./state.js";
-import { CUSTOM_ENTRY_TYPE, type ThreadGoal } from "./types.js";
+import type { ThreadGoal } from "./types.js";
 
 export interface AccountingState {
   activeGoalId: string | null;
   lastAccountedAt: number | null;
-  budgetWarningSentFor: string | null;
 }
 
 export interface AssistantUsage {
@@ -25,7 +23,6 @@ export function createAccountingState(): AccountingState {
   return {
     activeGoalId: null,
     lastAccountedAt: null,
-    budgetWarningSentFor: null,
   };
 }
 
@@ -55,7 +52,6 @@ interface GoalAccountingDeps {
   getGoal: () => ThreadGoal | null;
   getAccounting: () => AccountingState;
   applyRuntimeAccountingTransition: (ctx: ExtensionContext, nextGoal: ThreadGoal) => void;
-  sendMessage: ExtensionAPI["sendMessage"];
 }
 
 export function createGoalAccounting(deps: GoalAccountingDeps) {
@@ -80,14 +76,13 @@ export function createGoalAccounting(deps: GoalAccountingDeps) {
 
   const accountProgress = (
     ctx: ExtensionContext,
-    allowBudgetSteering: boolean,
+    _includeActiveElapsed: boolean,
     completedTurnTokens = 0,
-    accountBudgetLimited = false,
+    _forceFlush = false,
   ): void => {
     const goal = deps.getGoal();
     const accounting = deps.getAccounting();
-    const canAccount = goal?.status === "active" || (accountBudgetLimited && goal?.status === "budgetLimited");
-    if (!goal || accounting.activeGoalId !== goal.goalId || !canAccount) {
+    if (!goal || accounting.activeGoalId !== goal.goalId || goal.status !== "active") {
       beginAccounting();
       return;
     }
@@ -98,26 +93,12 @@ export function createGoalAccounting(deps: GoalAccountingDeps) {
 
     const result = applyUsage(goal, completedTurnTokens, elapsed, {
       expectedGoalId: accounting.activeGoalId,
-      accountBudgetLimited,
     });
     if (!result.changed || !result.goal) {
       return;
     }
 
     deps.applyRuntimeAccountingTransition(ctx, result.goal);
-
-    if (allowBudgetSteering && result.crossedBudget && accounting.budgetWarningSentFor !== result.goal.goalId) {
-      accounting.budgetWarningSentFor = result.goal.goalId;
-      deps.sendMessage(
-        {
-          customType: CUSTOM_ENTRY_TYPE,
-          content: budgetLimitPrompt(result.goal),
-          display: false,
-          details: { kind: "budget_limit", goalId: result.goal.goalId },
-        },
-        { triggerTurn: true, deliverAs: "steer" },
-      );
-    }
   };
 
   return {

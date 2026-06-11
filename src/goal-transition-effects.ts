@@ -2,7 +2,6 @@ export type GoalTransitionEffect =
   | { type: "clearContinuation" }
   | { type: "clearActiveAccounting" }
   | { type: "resetRecovery" }
-  | { type: "clearBudgetWarning" }
   | { type: "clearHostOverflowRecovery" }
   | { type: "setRecoveryPausedAttention"; reason: string }
   | { type: "markContinuationQueued"; goalId: string }
@@ -12,7 +11,6 @@ export interface GoalTransitionEffectHandlers {
   clearContinuation: () => void;
   clearActiveAccounting: () => void;
   resetRecovery: () => void;
-  clearBudgetWarning: () => void;
   clearHostOverflowRecovery: () => void;
   setRecoveryPausedAttention: (reason: string) => void;
   markContinuationQueued: (goalId: string) => void;
@@ -66,9 +64,6 @@ export function applyGoalTransitionEffects(
         break;
       case "resetRecovery":
         handlers.resetRecovery();
-        break;
-      case "clearBudgetWarning":
-        handlers.clearBudgetWarning();
         break;
       case "clearHostOverflowRecovery":
         handlers.clearHostOverflowRecovery();

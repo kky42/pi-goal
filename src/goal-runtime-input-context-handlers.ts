@@ -6,7 +6,7 @@ import type {
   InputEventResult,
 } from "@earendil-works/pi-coding-agent";
 
-import { activeGoalContextPrompt, continuationGoalIdFromPrompt } from "./prompts.js";
+import { continuationGoalIdFromPrompt } from "./prompts.js";
 import { applyQueuedGoalProviderContextRewrites, extensionQueuedGoalWorkMessageId } from "./queued-goal-work.js";
 import { isActiveGoalQueuedDetails, isCommandResumeQueuedGoalMessage } from "./queued-goal-messages.js";
 import { applyStaleQueuedWorkEffects } from "./goal-runtime-event-utils.js";
@@ -16,8 +16,6 @@ import type {
   MessageStartEvent,
   QueuedGoalWorkMessageIdResolver,
 } from "./goal-runtime-event-handler-types.js";
-import { CUSTOM_ENTRY_TYPE, type ThreadGoal } from "./types.js";
-
 function goalIdFromQueuedDetails(details: unknown): string | null {
   return isActiveGoalQueuedDetails(details) ? details.goalId : null;
 }
@@ -28,17 +26,6 @@ function goalIdFromEventDetails(event: unknown): string | null {
   }
   const candidate = event as { details?: unknown; message?: { details?: unknown } };
   return goalIdFromQueuedDetails(candidate.details) ?? goalIdFromQueuedDetails(candidate.message?.details);
-}
-
-function createActiveGoalContextMessage(goal: ThreadGoal): ContextEvent["messages"][number] {
-  return {
-    role: "custom",
-    customType: CUSTOM_ENTRY_TYPE,
-    content: activeGoalContextPrompt(goal),
-    display: false,
-    details: { kind: "active_goal_context", goalId: goal.goalId },
-    timestamp: Date.now(),
-  };
 }
 
 export function createInputContextEventHandlers(
@@ -91,10 +78,7 @@ export function createInputContextEventHandlers(
         resolveActiveContinuationQueuedGoalWorkMessageId: extensionQueuedGoalWorkMessageId,
       });
 
-      const contextMessages =
-        goal?.status === "active"
-          ? [...rewrite.messages, createActiveGoalContextMessage(goal)]
-          : rewrite.messages;
+      const contextMessages = rewrite.messages;
       const changed = rewrite.changed || contextMessages.length !== event.messages.length;
 
       const contextAbortPlan = runtimeState.staleQueuedWorkGuard.planContextAbort(
@@ -134,7 +118,10 @@ export function createInputContextEventHandlers(
     }) satisfies ExtensionHandler<BeforeAgentStartEvent, undefined>,
 
     onMessageStart: (async (event, _ctx) => {
-      if (event.message.role === "user") {
+      const details = "details" in event.message ? event.message.details : undefined;
+      const isCommandGoalStart =
+        isActiveGoalQueuedDetails(details) && (details.kind === "command_start" || details.kind === "command_resume");
+      if (event.message.role === "user" || isCommandGoalStart) {
         stateController.persistHostOverflowUserReset(false);
       }
 

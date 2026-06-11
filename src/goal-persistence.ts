@@ -1,8 +1,14 @@
 import { RUNTIME_PERSIST_INTERVAL_MS } from "./runtime-config.js";
-import { cloneGoal, goalsEquivalent } from "./state.js";
-import type { GoalEntrySource, ThreadGoal } from "./types.js";
+import { clearEntry, cloneGoal, goalsEquivalent, setEntry } from "./state.js";
+import { CUSTOM_ENTRY_TYPE, type GoalEntrySource, type ThreadGoal } from "./types.js";
 
-export function createGoalPersistence(_deps?: unknown) {
+interface GoalPersistenceDeps {
+  pi?: {
+    appendEntry(customType: string, data?: unknown): void;
+  };
+}
+
+export function createGoalPersistence(deps: GoalPersistenceDeps = {}) {
   let goal: ThreadGoal | null = null;
   let lastPersistedGoal: ThreadGoal | null = null;
   let lastRuntimePersistAt: number | null = null;
@@ -18,7 +24,7 @@ export function createGoalPersistence(_deps?: unknown) {
     lastRuntimePersistAt = null;
   };
 
-  const flushGoalPersistence = (_source: GoalEntrySource): boolean => {
+  const flushGoalPersistence = (source: GoalEntrySource): boolean => {
     if (!goal) {
       return false;
     }
@@ -26,9 +32,10 @@ export function createGoalPersistence(_deps?: unknown) {
       return false;
     }
 
+    deps.pi?.appendEntry(CUSTOM_ENTRY_TYPE, setEntry(goal, source));
     lastPersistedGoal = cloneGoal(goal);
     lastRuntimePersistAt = Date.now();
-    return false;
+    return true;
   };
 
   const maybeFlushRuntimePersistence = (source: GoalEntrySource): void => {
@@ -48,7 +55,8 @@ export function createGoalPersistence(_deps?: unknown) {
     lastRuntimePersistAt = null;
   };
 
-  const appendClearEntry = (_clearedGoalId: string | null, _source: GoalEntrySource): void => {
+  const appendClearEntry = (clearedGoalId: string | null, source: GoalEntrySource): void => {
+    deps.pi?.appendEntry(CUSTOM_ENTRY_TYPE, clearEntry(clearedGoalId, source));
     clearGoalSnapshot();
   };
 

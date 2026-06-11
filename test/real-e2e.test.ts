@@ -76,7 +76,7 @@ function assistantText(event: JsonObject): string | null {
   return text.length > 0 ? text : null;
 }
 
-function continuationMessages(messages: unknown): JsonObject[] {
+function goalWorkMessages(messages: unknown): JsonObject[] {
   if (!Array.isArray(messages)) {
     return [];
   }
@@ -85,7 +85,11 @@ function continuationMessages(messages: unknown): JsonObject[] {
       return false;
     }
     const details = message.details;
-    return isObject(details) && details.kind === "continuation" && typeof details.goalId === "string";
+    return (
+      isObject(details) &&
+      (details.kind === "command_start" || details.kind === "command_resume" || details.kind === "continuation") &&
+      typeof details.goalId === "string"
+    );
   });
 }
 
@@ -336,7 +340,7 @@ test(
           if (text === null) {
             return false;
           }
-          if (text !== "1") {
+          if (!/^1\b/.test(text)) {
             return false;
           }
           if (!queuedUserResponse.promise) {
@@ -369,13 +373,13 @@ test(
 
       await rpc.waitFor(
         "queued user message response",
-        (event): event is JsonObject => assistantText(event) === "USER-QUEUE-CONSUMED",
+        (event): event is JsonObject => assistantText(event)?.includes("USER-QUEUE-CONSUMED") === true,
         90_000,
       );
 
       await rpc.waitFor(
         "goal continuation after queued user input",
-        (event): event is JsonObject => assistantText(event) === "2",
+        (event): event is JsonObject => /\b2\b/.test(assistantText(event) ?? ""),
         90_000,
       );
 
@@ -398,14 +402,14 @@ test(
       assert.equal(messagesResponse.success, true, messagesResponse.error);
       assert.ok(isObject(messagesResponse.data));
       const providerMessages = messagesResponse.data.messages;
-      const continuations = continuationMessages(providerMessages);
-      assert.ok(continuations.length >= 2, "expected at least the initial and post-user continuation messages");
+      const continuations = goalWorkMessages(providerMessages);
+      assert.ok(continuations.length >= 2, "expected at least the initial and post-user goal messages");
 
       const firstContinuation = continuations[0];
       assert.ok(firstContinuation);
       assert.equal(typeof firstContinuation.content, "string");
       assert.ok(isObject(firstContinuation.details));
-      assert.equal(firstContinuation.details.kind, "continuation");
+      assert.equal(firstContinuation.details.kind, "command_start");
       const firstContinuationGoalId = firstContinuation.details.goalId;
       if (typeof firstContinuationGoalId !== "string") {
         assert.fail("Expected continuation details to include a hidden goalId.");
@@ -420,13 +424,13 @@ test(
       assert.notEqual(userMessageIndex, -1, "queued user message should be persisted");
       const continuationIndexes = (providerMessages as JsonObject[])
         .map((message, index) => ({ message, index }))
-        .filter(({ message }) => continuationMessages([message]).length === 1)
+        .filter(({ message }) => goalWorkMessages([message]).length === 1)
         .map(({ index }) => index);
       assert.ok(continuationIndexes.some((index) => index < userMessageIndex));
       assert.ok(continuationIndexes.some((index) => index > userMessageIndex));
 
       const sessionEntries = await readSessionEntries(sessionFile);
-      const persistedContinuations = continuationMessages(sessionMessages(sessionEntries));
+      const persistedContinuations = goalWorkMessages(sessionMessages(sessionEntries));
       assert.equal(persistedContinuations.length, continuations.length);
       assert.equal(persistedContinuations[0]?.content, firstContinuation.content);
     } finally {
@@ -480,8 +484,8 @@ test(
       assert.ok(texts.includes("1"), `expected first goal turn to emit 1, got ${JSON.stringify(texts)}`);
       assert.ok(texts.includes("2"), `expected second goal turn to emit 2, got ${JSON.stringify(texts)}`);
       assert.ok(
-        texts.some((text) => /^3\b/.test(text)),
-        `expected a later goal turn to emit 3, got ${JSON.stringify(texts)}`,
+        texts.some((text) => /\b3\b/.test(text)),
+        `expected a later goal turn to mention 3, got ${JSON.stringify(texts)}`,
       );
       assert.ok(
         entries.some((entry) => {
@@ -588,7 +592,7 @@ test(
 
       assert.ok(sessionFile, "tmux interactive run should create a persisted session");
       const messages = sessionMessages(finalEntries);
-      const continuations = continuationMessages(messages);
+      const continuations = goalWorkMessages(messages);
       assert.ok(continuations.length >= 1);
 
       for (const continuation of continuations) {

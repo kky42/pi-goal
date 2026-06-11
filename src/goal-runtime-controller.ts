@@ -20,7 +20,7 @@ import {
 } from "./recovery-machine.js";
 import { goalWithLiveUsage } from "./state.js";
 import { registerGoalTools } from "./tools.js";
-import type { GoalEntrySource, GoalResult, ThreadGoal } from "./types.js";
+import type { GoalContinuationKind, GoalEntrySource, GoalResult, ThreadGoal } from "./types.js";
 
 export interface GoalRuntimeController extends GoalRuntimeEventHandlers {
   getGoalForDisplay(): ThreadGoal | null;
@@ -28,12 +28,12 @@ export interface GoalRuntimeController extends GoalRuntimeEventHandlers {
   clearGoal(source: GoalEntrySource, ctx: ExtensionContext): void;
   hasPendingPostTurnWork(): boolean;
   updateGoal(status: "complete" | "blocked", source: GoalEntrySource, ctx: ExtensionContext): GoalResult;
-  requestContinuation(ctx: ExtensionContext): boolean;
+  requestContinuation(ctx: ExtensionContext, kind?: GoalContinuationKind): boolean;
 }
 
 export function createGoalRuntimeController(pi: ExtensionAPI): GoalRuntimeController {
   const runtimeState = createGoalRuntimeState();
-  const persistence = createGoalPersistence();
+  const persistence = createGoalPersistence({ pi });
 
   const clearActiveAccounting = (): void => {
     runtimeState.accounting.activeGoalId = null;
@@ -66,15 +66,13 @@ export function createGoalRuntimeController(pi: ExtensionAPI): GoalRuntimeContro
   });
 
   const stateController = createGoalStateController({
+    pi,
     persistence,
     getRecoveryState: () => runtimeState.recoveryState,
     transitionEffectHandlers: {
       clearContinuation: continuation.clearContinuationState,
       clearActiveAccounting,
       resetRecovery: resetErrorRecovery,
-      clearBudgetWarning: () => {
-        runtimeState.accounting.budgetWarningSentFor = null;
-      },
       clearHostOverflowRecovery: () => {
         clearActiveHostOverflowRecovery(runtimeState.recoveryState);
       },
@@ -93,7 +91,6 @@ export function createGoalRuntimeController(pi: ExtensionAPI): GoalRuntimeContro
     applyRuntimeAccountingTransition(ctx, nextGoal) {
       stateController.applyGoalTransition({ kind: "runtime_accounting", nextGoal }, ctx);
     },
-    sendMessage: pi.sendMessage.bind(pi),
   });
 
   const recoveryRuntime = createGoalRecoveryRuntime({

@@ -1,7 +1,7 @@
 export const CUSTOM_ENTRY_TYPE = "pi-codex-goal";
 export const MAX_OBJECTIVE_CHARS = 8000;
 
-export type GoalStatus = "active" | "paused" | "blocked" | "budgetLimited" | "complete";
+export type GoalStatus = "active" | "paused" | "blocked" | "complete";
 
 export interface GoalUsage {
 	tokensUsed: number;
@@ -12,13 +12,15 @@ export interface ThreadGoal {
 	goalId: string;
 	objective: string;
 	status: GoalStatus;
-	tokenBudget: number | null;
+	/** Legacy persisted goals may have this field; new pi-goal ignores token budgets. */
+	tokenBudget?: number | null;
 	usage: GoalUsage;
 	createdAt: number;
 	updatedAt: number;
 }
 
 export type GoalEntrySource = "command" | "tool" | "runtime";
+export type GoalContinuationKind = "continuation" | "command_start" | "command_resume";
 
 export type GoalCustomEntry =
 	| {

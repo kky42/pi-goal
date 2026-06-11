@@ -88,8 +88,8 @@ test("applyQueuedGoalProviderContextRewrites preserves historical active continu
   assert.equal(messages.length, 2);
   assert.deepEqual(messages[0], older);
   assert.deepEqual(messages[1], latest);
-  assert.match(String(messages[0]?.content), /Tokens used: 0/);
-  assert.match(String(messages[1]?.content), /Tokens used: 99/);
+  assert.equal(messages[0]?.content, continuationPrompt(activeGoal));
+  assert.equal(messages[1]?.content, continuationPrompt(activeGoal));
 });
 
 test("applyQueuedGoalProviderContextRewrites preserves stale continuation content for completed goals", () => {

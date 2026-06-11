@@ -8,12 +8,13 @@ import {
   type GoalCommandContext,
   type GoalCommandPi,
 } from "../src/commands.js";
-import { applyUsage, updateGoalStatus } from "../src/state.js";
+import { updateGoalStatus } from "../src/state.js";
 import type { GoalEntrySource, ThreadGoal } from "../src/types.js";
 
 function createHarness() {
   let goal: ThreadGoal | null = null;
   let continuationRequests = 0;
+  const continuationKinds: Array<string | undefined> = [];
   let waitForIdleCalls = 0;
   let continuationRequestResult = false;
   let onWaitForIdle: (() => void | Promise<void>) | null = null;
@@ -31,8 +32,9 @@ function createHarness() {
     clearGoal() {
       goal = null;
     },
-    requestContinuation() {
+    requestContinuation(_ctx, kind) {
       continuationRequests += 1;
+      continuationKinds.push(kind);
       return continuationRequestResult;
     },
   };
@@ -65,6 +67,7 @@ function createHarness() {
     notifications,
     resetContinuationRequests() {
       continuationRequests = 0;
+      continuationKinds.length = 0;
     },
     resetWaitForIdleCalls() {
       waitForIdleCalls = 0;
@@ -77,6 +80,9 @@ function createHarness() {
     },
     get continuationRequests() {
       return continuationRequests;
+    },
+    get continuationKinds() {
+      return continuationKinds;
     },
     get waitForIdleCalls() {
       return waitForIdleCalls;
@@ -118,19 +124,9 @@ test("/goal objective creates the goal and requests scheduler continuation", asy
   assert.equal(harness.goal?.objective, "ship the feature");
   const notification = harness.notifications.at(-1);
   assert.ok(notification);
-  const [banner, ...summaryLines] = notification.split("\n");
-  assert.equal(banner, "\x1b[38;5;220mGoal set.\x1b[39m");
-  assert.equal(
-    summaryLines.join("\n"),
-    [
-      "Status: active",
-      "Objective: ship the feature",
-      "Time used: 0s",
-      "Tokens used: 0",
-      "Hint: /goal pause, /goal clear",
-    ].join("\n"),
-  );
+  assert.equal(notification, "\x1b[38;5;220mGoal set.\x1b[39m");
   assert.equal(harness.continuationRequests, 1);
+  assert.deepEqual(harness.continuationKinds, ["command_start"]);
 });
 
 test("/goal resume requests scheduler continuation", async () => {
@@ -146,6 +142,7 @@ test("/goal resume requests scheduler continuation", async () => {
 
   assert.equal(harness.goal?.status, "active");
   assert.equal(harness.continuationRequests, 1);
+  assert.deepEqual(harness.continuationKinds, ["command_resume"]);
 });
 
 test("/goal resume waits for scheduled continuation in headless mode", async () => {
@@ -291,23 +288,6 @@ test("/goal objective drains scheduled headless continuations until the goal is 
   assert.equal(harness.goal?.status, "complete");
   assert.equal(harness.continuationRequests, 3);
   assert.equal(harness.waitForIdleCalls, 3);
-});
-
-test("/goal resume does not restart an over-budget budget-limited goal", async () => {
-  const harness = createHarness();
-
-  await handleGoalCommand(harness.pi, harness.host, "ship the feature", harness.ctx);
-  const budgeted = { ...harness.goal, tokenBudget: 10 } as ThreadGoal;
-  const limited = applyUsage(budgeted, 10, 0).goal;
-  assert.ok(limited);
-  harness.resetContinuationRequests();
-  harness.setGoal(limited);
-
-  await handleGoalCommand(harness.pi, harness.host, "resume", harness.ctx);
-
-  assert.equal(harness.goal?.status, "budgetLimited");
-  assert.equal(harness.continuationRequests, 0);
-  assert.match(harness.notifications.at(-1) ?? "", /Budget-limited goals are system-controlled/);
 });
 
 test("/goal resume works from blocked goals", async () => {

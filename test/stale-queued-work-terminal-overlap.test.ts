@@ -346,7 +346,7 @@ test("compaction between stale context abort and cleanup does not persist, accou
     const oldMessage = queuedCustomMessage(oldQueued, 1);
 
     await harness.runCommand("clear");
-    await harness.runTool("create_goal", { objective: "new goal" });
+    await harness.runCommand("new goal");
     const replacement = harness.snapshot().goal;
     assert.equal(replacement?.objective, "new goal");
     const entryCountBeforeCompaction = harness.entries.length;
@@ -429,9 +429,9 @@ test("mixed stale and current follow-up batch neutralizes stale work without abo
 
   assert.equal(harness.abortCount, 0);
   assert.equal(contextResults[0], undefined);
-  assert.deepEqual(oldMessage.details, { kind: "continuation", goalId: oldGoalId });
+  assert.deepEqual(oldMessage.details, { kind: "command_start", goalId: oldGoalId });
   assert.deepEqual(currentMessage.details, {
-    kind: "continuation",
+    kind: "command_start",
     goalId: replacement?.goalId,
   });
 

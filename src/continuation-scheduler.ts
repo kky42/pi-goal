@@ -1,6 +1,6 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 
-import { continuationGoalIdFromPrompt, markedContinuationPrompt } from "./prompts.js";
+import { continuationGoalIdFromPrompt, formatGoalWrapper } from "./prompts.js";
 import {
   recoveryPhaseBlocksContinuation,
   type GoalRecoveryMachineState,
@@ -8,10 +8,10 @@ import {
 import { isRecoveryPendingAttention } from "./recovery.js";
 import { CONTINUATION_RETRY_MS } from "./runtime-config.js";
 import type { StaleQueuedWorkGuard } from "./stale-queued-work-guard.js";
-import type { ThreadGoal } from "./types.js";
+import { CUSTOM_ENTRY_TYPE, type GoalContinuationKind, type ThreadGoal } from "./types.js";
 
 interface ContinuationSchedulerDeps {
-  pi: Pick<ExtensionAPI, "sendUserMessage">;
+  pi: Pick<ExtensionAPI, "sendMessage">;
   getGoal: () => ThreadGoal | null;
   getRecoveryState: () => GoalRecoveryMachineState;
   staleQueuedWorkGuard: StaleQueuedWorkGuard;
@@ -94,12 +94,20 @@ export function createContinuationScheduler(deps: ContinuationSchedulerDeps) {
     return Boolean(goal?.status === "active" && isRecoveryPendingAttention(deps.getRecoveryState().attention));
   };
 
-  const sendContinuation = (goalToContinue: ThreadGoal): void => {
+  const sendContinuation = (goalToContinue: ThreadGoal, kind: GoalContinuationKind): void => {
     continuationQueuedFor = goalToContinue.goalId;
-    deps.pi.sendUserMessage(markedContinuationPrompt(goalToContinue), { deliverAs: "followUp" });
+    deps.pi.sendMessage(
+      {
+        customType: CUSTOM_ENTRY_TYPE,
+        content: formatGoalWrapper(goalToContinue),
+        display: true,
+        details: { kind, goalId: goalToContinue.goalId },
+      },
+      { triggerTurn: true, deliverAs: "followUp" },
+    );
   };
 
-  const requestContinuation = (ctx: ExtensionContext): boolean => {
+  const requestContinuation = (ctx: ExtensionContext, kind: GoalContinuationKind = "continuation"): boolean => {
     const goal = deps.getGoal();
     if (
       deps.staleQueuedWorkGuard.isBlockingContinuation() ||
@@ -131,7 +139,7 @@ export function createContinuationScheduler(deps: ContinuationSchedulerDeps) {
       continuationTimer = setTimeout(() => {
         continuationTimer = null;
         continuationScheduledFor = null;
-        requestContinuation(ctx);
+        requestContinuation(ctx, kind);
       }, CONTINUATION_RETRY_MS);
       continuationTimer.unref?.();
       return true;
@@ -152,7 +160,7 @@ export function createContinuationScheduler(deps: ContinuationSchedulerDeps) {
     ) {
       return false;
     }
-    sendContinuation(currentGoal);
+    sendContinuation(currentGoal, kind);
     return true;
   };
 

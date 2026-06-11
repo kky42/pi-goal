@@ -19,6 +19,7 @@ import type {
 
 import type { GoalRuntimeState } from "./goal-runtime-state.js";
 import type { GoalStateController } from "./goal-state-controller.js";
+import type { GoalContinuationKind } from "./types.js";
 import type { AssistantErrorMessage } from "./recovery.js";
 
 export type ContextEventResult = { messages?: ContextEvent["messages"] };
@@ -54,7 +55,7 @@ export interface GoalRuntimeContinuationPort {
   clearPassthroughContinuationInput: () => void;
   continuationGoalIdFromRuntimePrompt: (prompt: string) => string | null;
   notePassthroughContinuationInput: (input: string) => void;
-  requestContinuation: (ctx: ExtensionContext) => boolean;
+  requestContinuation: (ctx: ExtensionContext, kind?: GoalContinuationKind) => boolean;
 }
 
 export interface GoalAccountingPort {
