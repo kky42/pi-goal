@@ -1,4 +1,4 @@
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 import type { GoalPersistence } from "./goal-persistence.js";
 import type { StatusContext } from "./goal-runtime-status.js";
@@ -13,20 +13,16 @@ import {
   applyHostOverflowUserResetPersistence,
   beginHostOverflowRecovery,
   requireHostOverflowUserReset,
-  syncHostOverflowUserResetFromSession,
   type GoalRecoveryMachineState,
 } from "./recovery-machine.js";
 import {
   goalsEquivalent,
-  hostOverflowCapResetEntry,
-  reconstructGoal,
-  reconstructHostOverflowCapNeedsUserReset,
   updateGoalStatus,
 } from "./state.js";
-import { CUSTOM_ENTRY_TYPE, type GoalEntrySource, type GoalResult, type ThreadGoal } from "./types.js";
+import type { GoalEntrySource, GoalResult, ThreadGoal } from "./types.js";
 
 interface GoalStateControllerDeps {
-  pi: Pick<ExtensionAPI, "appendEntry">;
+  pi?: unknown;
   persistence: GoalPersistence;
   getRecoveryState: () => GoalRecoveryMachineState;
   transitionEffectHandlers: GoalTransitionEffectHandlers;
@@ -115,10 +111,7 @@ export function createGoalStateController(deps: GoalStateControllerDeps) {
   };
 
   const persistHostOverflowUserReset = (needsReset: boolean): void => {
-    if (!applyHostOverflowUserResetPersistence(deps.getRecoveryState(), needsReset)) {
-      return;
-    }
-    deps.pi.appendEntry(CUSTOM_ENTRY_TYPE, hostOverflowCapResetEntry(needsReset));
+    applyHostOverflowUserResetPersistence(deps.getRecoveryState(), needsReset);
   };
 
   const beginOverflowRecovery = (ctx: StatusContext): void => {
@@ -136,22 +129,15 @@ export function createGoalStateController(deps: GoalStateControllerDeps) {
     }
 
     if (shouldPersist) {
-      deps.pi.appendEntry(CUSTOM_ENTRY_TYPE, hostOverflowCapResetEntry(true));
+      applyHostOverflowUserResetPersistence(deps.getRecoveryState(), true);
     }
   };
 
   const reloadFromSession = (ctx: ExtensionContext): void => {
-    const previousGoalId = getGoal()?.goalId ?? null;
-    const branch = ctx.sessionManager.getBranch();
-    const reconstructed = reconstructGoal(branch).goal;
-    deps.persistence.setGoalSnapshot(reconstructed);
-    deps.persistence.syncPersistedSnapshot(reconstructed);
-    syncHostOverflowUserResetFromSession(
-      deps.getRecoveryState(),
-      reconstructHostOverflowCapNeedsUserReset(branch),
-    );
+    const current = getGoal();
+    deps.persistence.syncPersistedSnapshot(current);
     applyGoalTransitionEffects(
-      reloadRuntimeEffects(previousGoalId, reconstructed),
+      reloadRuntimeEffects(current?.goalId ?? null, current),
       deps.transitionEffectHandlers,
     );
     deps.refreshUi(ctx);

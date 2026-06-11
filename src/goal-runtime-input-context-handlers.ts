@@ -6,7 +6,7 @@ import type {
   InputEventResult,
 } from "@earendil-works/pi-coding-agent";
 
-import { continuationGoalIdFromPrompt } from "./prompts.js";
+import { activeGoalContextPrompt, continuationGoalIdFromPrompt } from "./prompts.js";
 import { applyQueuedGoalProviderContextRewrites, extensionQueuedGoalWorkMessageId } from "./queued-goal-work.js";
 import { isActiveGoalQueuedDetails, isCommandResumeQueuedGoalMessage } from "./queued-goal-messages.js";
 import { applyStaleQueuedWorkEffects } from "./goal-runtime-event-utils.js";
@@ -16,6 +16,7 @@ import type {
   MessageStartEvent,
   QueuedGoalWorkMessageIdResolver,
 } from "./goal-runtime-event-handler-types.js";
+import { CUSTOM_ENTRY_TYPE, type ThreadGoal } from "./types.js";
 
 function goalIdFromQueuedDetails(details: unknown): string | null {
   return isActiveGoalQueuedDetails(details) ? details.goalId : null;
@@ -27,6 +28,17 @@ function goalIdFromEventDetails(event: unknown): string | null {
   }
   const candidate = event as { details?: unknown; message?: { details?: unknown } };
   return goalIdFromQueuedDetails(candidate.details) ?? goalIdFromQueuedDetails(candidate.message?.details);
+}
+
+function createActiveGoalContextMessage(goal: ThreadGoal): ContextEvent["messages"][number] {
+  return {
+    role: "custom",
+    customType: CUSTOM_ENTRY_TYPE,
+    content: activeGoalContextPrompt(goal),
+    display: false,
+    details: { kind: "active_goal_context", goalId: goal.goalId },
+    timestamp: Date.now(),
+  };
 }
 
 export function createInputContextEventHandlers(
@@ -72,11 +84,18 @@ export function createInputContextEventHandlers(
     }) satisfies ExtensionHandler<InputEvent, InputEventResult>,
 
     onContext: (async (event, ctx) => {
-      const { messages, changed } = applyQueuedGoalProviderContextRewrites(event.messages, {
-        goal: stateController.getGoal(),
+      const goal = stateController.getGoal();
+      const rewrite = applyQueuedGoalProviderContextRewrites(event.messages, {
+        goal,
         resolveStaleQueuedGoalWorkMessageId: queuedGoalWorkMessageIdForRuntime,
         resolveActiveContinuationQueuedGoalWorkMessageId: extensionQueuedGoalWorkMessageId,
       });
+
+      const contextMessages =
+        goal?.status === "active"
+          ? [...rewrite.messages, createActiveGoalContextMessage(goal)]
+          : rewrite.messages;
+      const changed = rewrite.changed || contextMessages.length !== event.messages.length;
 
       const contextAbortPlan = runtimeState.staleQueuedWorkGuard.planContextAbort(
         runtimeState.currentTurnIndex,
@@ -85,7 +104,7 @@ export function createInputContextEventHandlers(
         applyStaleQueuedWorkEffects(contextAbortPlan.effects, ctx, deps);
       }
 
-      return changed ? { messages } : undefined;
+      return changed ? { messages: contextMessages } : undefined;
     }) satisfies ExtensionHandler<ContextEvent, ContextEventResult | undefined>,
 
     onBeforeAgentStart: (async (event, ctx) => {

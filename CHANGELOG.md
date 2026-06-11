@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 1.0.3 - 2026-06-11
+
+- Temporarily masks model-facing `get_goal` and `create_goal`, leaving `update_goal` as the only registered goal tool.
+- Simplifies goal runtime state to in-memory snapshots and stops writing pi-goal custom session entries, reducing coupling to pi session persistence and compaction internals.
+- Sends goal continuations as pi-native user follow-ups and injects authoritative active-goal context before each provider call so repeated auto-compaction preserves the goal loop in-process.
+- Keeps headless `/goal <objective>` running through scheduled continuations and pending auto-compaction until the active goal is completed, blocked, paused, cleared, or budget-limited.
+
 ## 1.0.2 - 2026-05-30
 
 - Prevents `/goal` argument autocomplete from injecting `pause`, `resume`, or `clear` into free-form goal objectives while preserving explicit subcommand completion.

@@ -1,14 +1,8 @@
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-
 import { RUNTIME_PERSIST_INTERVAL_MS } from "./runtime-config.js";
-import { clearEntry, cloneGoal, goalsEquivalent, setEntry } from "./state.js";
-import { CUSTOM_ENTRY_TYPE, type GoalEntrySource, type ThreadGoal } from "./types.js";
+import { cloneGoal, goalsEquivalent } from "./state.js";
+import type { GoalEntrySource, ThreadGoal } from "./types.js";
 
-interface GoalPersistenceDeps {
-  pi: Pick<ExtensionAPI, "appendEntry">;
-}
-
-export function createGoalPersistence(deps: GoalPersistenceDeps) {
+export function createGoalPersistence(_deps?: unknown) {
   let goal: ThreadGoal | null = null;
   let lastPersistedGoal: ThreadGoal | null = null;
   let lastRuntimePersistAt: number | null = null;
@@ -24,7 +18,7 @@ export function createGoalPersistence(deps: GoalPersistenceDeps) {
     lastRuntimePersistAt = null;
   };
 
-  const flushGoalPersistence = (source: GoalEntrySource): boolean => {
+  const flushGoalPersistence = (_source: GoalEntrySource): boolean => {
     if (!goal) {
       return false;
     }
@@ -32,10 +26,9 @@ export function createGoalPersistence(deps: GoalPersistenceDeps) {
       return false;
     }
 
-    deps.pi.appendEntry(CUSTOM_ENTRY_TYPE, setEntry(goal, source));
     lastPersistedGoal = cloneGoal(goal);
     lastRuntimePersistAt = Date.now();
-    return true;
+    return false;
   };
 
   const maybeFlushRuntimePersistence = (source: GoalEntrySource): void => {
@@ -55,9 +48,8 @@ export function createGoalPersistence(deps: GoalPersistenceDeps) {
     lastRuntimePersistAt = null;
   };
 
-  const appendClearEntry = (clearedGoalId: string | null, source: GoalEntrySource): void => {
+  const appendClearEntry = (_clearedGoalId: string | null, _source: GoalEntrySource): void => {
     clearGoalSnapshot();
-    deps.pi.appendEntry(CUSTOM_ENTRY_TYPE, clearEntry(clearedGoalId, source));
   };
 
   return {

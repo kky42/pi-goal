@@ -26,13 +26,14 @@ export interface GoalRuntimeController extends GoalRuntimeEventHandlers {
   getGoalForDisplay(): ThreadGoal | null;
   setGoal(goal: ThreadGoal, source: GoalEntrySource, ctx: ExtensionContext): void;
   clearGoal(source: GoalEntrySource, ctx: ExtensionContext): void;
+  hasPendingPostTurnWork(): boolean;
   updateGoal(status: "complete" | "blocked", source: GoalEntrySource, ctx: ExtensionContext): GoalResult;
   requestContinuation(ctx: ExtensionContext): boolean;
 }
 
 export function createGoalRuntimeController(pi: ExtensionAPI): GoalRuntimeController {
   const runtimeState = createGoalRuntimeState();
-  const persistence = createGoalPersistence({ pi });
+  const persistence = createGoalPersistence();
 
   const clearActiveAccounting = (): void => {
     runtimeState.accounting.activeGoalId = null;
@@ -65,7 +66,6 @@ export function createGoalRuntimeController(pi: ExtensionAPI): GoalRuntimeContro
   });
 
   const stateController = createGoalStateController({
-    pi,
     persistence,
     getRecoveryState: () => runtimeState.recoveryState,
     transitionEffectHandlers: {
@@ -139,24 +139,28 @@ export function createGoalRuntimeController(pi: ExtensionAPI): GoalRuntimeContro
     clearGoal(source, ctx) {
       stateController.applyGoalTransition({ kind: "clear", source }, ctx);
     },
+    hasPendingPostTurnWork() {
+      return runtimeState.compactionInFlight;
+    },
     updateGoal,
     requestContinuation: continuation.requestContinuation,
     ...eventHandlers,
   };
 }
 
-export function registerGoalRuntimeController(pi: ExtensionAPI): void {
+export function registerGoalRuntimeController(pi: ExtensionAPI): GoalRuntimeController {
   const controller = createGoalRuntimeController(pi);
   registerGoalTools(pi, {
     getGoal: () => controller.getGoalForDisplay(),
-    setGoal: controller.setGoal.bind(controller),
     updateGoal: controller.updateGoal.bind(controller),
   });
   registerGoalCommand(pi, {
     getGoal: () => controller.getGoalForDisplay(),
     setGoal: controller.setGoal.bind(controller),
     clearGoal: controller.clearGoal.bind(controller),
+    hasPendingPostTurnWork: () => controller.hasPendingPostTurnWork(),
     requestContinuation: controller.requestContinuation.bind(controller),
   });
   registerGoalRuntimeEvents(pi, controller);
+  return controller;
 }

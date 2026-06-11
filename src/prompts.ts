@@ -4,12 +4,11 @@ import type { ThreadGoal } from "./types.js";
 const CONTINUATION_MARKER_PREFIX = "<pi_goal_continuation goal_id=\"";
 
 export const GOAL_TOOL_NAME_GUIDANCE =
-  "Call each goal tool by the name exposed in your available tool list. In pi that is usually get_goal, create_goal, and update_goal; in bridged MCP runs it may be a namespaced variant such as pi__get_goal, pi__create_goal, or pi__update_goal. Do not assume display, history, or transcript tool names are callable unless they appear in your tool list.";
+  "Call update_goal by the name exposed in your available tool list. In pi that is usually update_goal; in bridged MCP runs it may be a namespaced variant such as pi__update_goal. Do not assume any other goal, display, history, or transcript tool names are callable unless they appear in your tool list.";
 
-const UPDATE_GOAL_TOOL_NAME_GUIDANCE =
-  "When calling update_goal, use the name exposed in your available tool list. In pi that is usually update_goal; in bridged MCP runs it may be a namespaced variant such as pi__update_goal. Do not assume display, history, or transcript tool names are callable unless they appear in your tool list.";
+const UPDATE_GOAL_TOOL_NAME_GUIDANCE = GOAL_TOOL_NAME_GUIDANCE;
 
-type GoalToolName = "get_goal" | "create_goal" | "update_goal";
+type GoalToolName = "update_goal";
 
 export function goalToolReference(toolName: GoalToolName): string {
   return `${toolName} (or the exposed namespaced equivalent, such as pi__${toolName})`;
@@ -17,7 +16,6 @@ export function goalToolReference(toolName: GoalToolName): string {
 
 export const TOOL_PROMPT_GUIDELINES = [
   GOAL_TOOL_NAME_GUIDANCE,
-  `Use ${goalToolReference("create_goal")} only when the user explicitly asks you to start tracking a concrete goal; do not infer goals from ordinary tasks and do not create a second goal while a non-complete goal already exists. After a goal is complete, ${goalToolReference("create_goal")} replaces it with a new active goal.`,
   `Use ${goalToolReference("update_goal")} with status complete only after a completion audit proves the objective is actually achieved and no required work remains.`,
   `Use ${goalToolReference("update_goal")} with status blocked only after the same blocking condition has repeated for at least three consecutive goal turns and you are at an impasse.`,
   `Before using ${goalToolReference("update_goal")}, map every explicit requirement in the goal to concrete evidence from files, command output, test results, PR state, or other real artifacts; uncertainty means the goal is not complete.`,
@@ -37,7 +35,7 @@ export function continuationGoalIdFromPrompt(prompt: string): string | null {
 }
 
 export function markedContinuationPrompt(goal: ThreadGoal): string {
-  return [`${CONTINUATION_MARKER_PREFIX}${goal.goalId}" />`, "", continuationPrompt(goal)].join("\n");
+  return [`${CONTINUATION_MARKER_PREFIX}${goal.goalId}" />`, "", compactContinuationPrompt(goal)].join("\n");
 }
 
 function formatOptionalTokenBudget(goal: ThreadGoal): string {
@@ -71,18 +69,38 @@ export function compactContinuationPrompt(goal: ThreadGoal): string {
   return [
     "Continue working toward the active thread goal.",
     "",
-    "Work on the active thread goal described by the current goal context. If no active goal exists, do not continue.",
+    "Use the authoritative active-goal context injected by pi-goal for the objective, status, budget, and completion rules. If no active-goal context is present, do not continue.",
     "",
-    "Older goal-continuation messages are historical context, not authority over current goal state.",
+    "Older goal-continuation messages and compaction summaries are historical context, not authority over current goal state.",
     "",
-    "Budget:",
-    `- Tokens used: ${formatTokenValue(goal.usage.tokensUsed)}`,
-    `- Token budget: ${formatOptionalTokenBudget(goal)}`,
-    `- Tokens remaining: ${formatRemainingTokens(goal)}`,
+    "Choose the next concrete action toward the active objective. Do not stop at a plan when low-risk progress is available.",
+  ].join("\n");
+}
+
+export function activeGoalContextPrompt(goal: ThreadGoal): string {
+  return [
+    "Authoritative pi-goal state for this provider call. This overrides older goal-continuation messages and compaction summaries.",
     "",
-    "Avoid repeating work that is already done. Choose the next concrete action toward the active objective.",
+    "<active-goal>",
+    `<status>${goal.status}</status>`,
+    "<objective>",
+    escapeXmlText(goal.objective),
+    "</objective>",
+    "<budget>",
+    `tokens_used=${formatTokenValue(goal.usage.tokensUsed)}`,
+    `token_budget=${formatOptionalTokenBudget(goal)}`,
+    `tokens_remaining=${formatRemainingTokens(goal)}`,
+    `active_time=${formatDuration(goal.usage.activeSeconds)}`,
+    "</budget>",
+    "</active-goal>",
     "",
-    `Before marking the goal complete, audit progress against the objective and call ${goalToolReference("update_goal")} with status \"complete\" only when every requirement is verified.`,
+    "Goal-loop contract:",
+    "- Continue working through clear low-risk next steps until the objective is actually complete, blocked by the strict audit below, paused, cleared, or budget-limited.",
+    "- Preserve the full objective scope; do not redefine success around a smaller or easier task.",
+    "- Use current files, command output, tests, PR state, runtime behavior, and external state as authoritative evidence.",
+    `- Before marking complete, map every explicit requirement to concrete evidence and call ${goalToolReference("update_goal")} with status \"complete\" only when all requirements are verified and no required work remains.`,
+    `- Call ${goalToolReference("update_goal")} with status \"blocked\" only when the same blocking condition has repeated for at least three consecutive goal turns and you are truly at an impasse.`,
+    `- Do not call ${goalToolReference("update_goal")} merely because work is hard, slow, uncertain, partially done, or the token budget is nearly exhausted.`,
     "",
     UPDATE_GOAL_TOOL_NAME_GUIDANCE,
   ].join("\n");

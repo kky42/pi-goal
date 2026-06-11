@@ -8,6 +8,7 @@ export interface CommandHost {
   getGoal(): ThreadGoal | null;
   setGoal(goal: ThreadGoal, source: GoalEntrySource, ctx: GoalCommandContext): void;
   clearGoal(source: GoalEntrySource, ctx: GoalCommandContext): void;
+  hasPendingPostTurnWork?(): boolean;
   requestContinuation(ctx: GoalCommandContext): boolean;
 }
 
@@ -29,8 +30,13 @@ async function waitForHeadlessContinuationDrain(
   if (ctx.hasUI || !ctx.waitForIdle) {
     return;
   }
-  while (host.getGoal()?.status === "active") {
+  while (host.getGoal()?.status === "active" || host.hasPendingPostTurnWork?.() === true) {
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
     await ctx.waitForIdle();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    if (host.hasPendingPostTurnWork?.() === true) {
+      continue;
+    }
     if (host.getGoal()?.status !== "active") {
       return;
     }

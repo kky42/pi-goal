@@ -122,7 +122,7 @@ export interface GoalRuntimeAgentHandlerContext extends StaleQueuedWorkEffectCon
 }
 
 export interface GoalRuntimeSessionHandlerContext extends StaleQueuedWorkEffectContext {
-  runtimeState: Pick<GoalRuntimeState, "recoveryState" | "staleQueuedWorkGuard">;
+  runtimeState: Pick<GoalRuntimeState, "compactionInFlight" | "recoveryState" | "staleQueuedWorkGuard">;
   stateController: Pick<
     GoalStateController,
     "applyGoalTransition" | "flushGoalPersistence" | "getGoal" | "reloadFromSession" | "resumePausedGoal"

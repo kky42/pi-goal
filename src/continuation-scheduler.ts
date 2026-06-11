@@ -1,18 +1,17 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 
-import { continuationGoalIdFromPrompt, continuationPrompt, markedContinuationPrompt } from "./prompts.js";
+import { continuationGoalIdFromPrompt, markedContinuationPrompt } from "./prompts.js";
 import {
-  goalStartTurnStrategy,
   recoveryPhaseBlocksContinuation,
   type GoalRecoveryMachineState,
 } from "./recovery-machine.js";
 import { isRecoveryPendingAttention } from "./recovery.js";
 import { CONTINUATION_RETRY_MS } from "./runtime-config.js";
 import type { StaleQueuedWorkGuard } from "./stale-queued-work-guard.js";
-import { CUSTOM_ENTRY_TYPE, type ThreadGoal } from "./types.js";
+import type { ThreadGoal } from "./types.js";
 
 interface ContinuationSchedulerDeps {
-  pi: Pick<ExtensionAPI, "sendMessage" | "sendUserMessage">;
+  pi: Pick<ExtensionAPI, "sendUserMessage">;
   getGoal: () => ThreadGoal | null;
   getRecoveryState: () => GoalRecoveryMachineState;
   staleQueuedWorkGuard: StaleQueuedWorkGuard;
@@ -97,19 +96,7 @@ export function createContinuationScheduler(deps: ContinuationSchedulerDeps) {
 
   const sendContinuation = (goalToContinue: ThreadGoal): void => {
     continuationQueuedFor = goalToContinue.goalId;
-    if (goalStartTurnStrategy(deps.getRecoveryState().phase) === "userFollowUp") {
-      deps.pi.sendUserMessage(markedContinuationPrompt(goalToContinue), { deliverAs: "followUp" });
-      return;
-    }
-    deps.pi.sendMessage(
-      {
-        customType: CUSTOM_ENTRY_TYPE,
-        content: continuationPrompt(goalToContinue),
-        display: false,
-        details: { kind: "continuation", goalId: goalToContinue.goalId },
-      },
-      { triggerTurn: true, deliverAs: "followUp" },
-    );
+    deps.pi.sendUserMessage(markedContinuationPrompt(goalToContinue), { deliverAs: "followUp" });
   };
 
   const requestContinuation = (ctx: ExtensionContext): boolean => {
