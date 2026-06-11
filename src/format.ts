@@ -92,10 +92,6 @@ function commandHint(status: GoalStatus): string {
   return "/goal <objective> to replace, /goal clear";
 }
 
-export function formatBudget(goal: ThreadGoal): string {
-  return `${formatTokenValue(goal.usage.tokensUsed)} tokens`;
-}
-
 export function formatGoalSummary(goal: ThreadGoal | null): string {
   if (!goal) {
     return ["Usage: /goal <objective>", "No goal is currently set."].join("\n");

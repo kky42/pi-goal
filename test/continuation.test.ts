@@ -175,9 +175,6 @@ test("update_goal returns simplified response details", async () => {
   assert.equal(blockedGoal.objective, "ship it");
   assert.equal(blockedGoal.status, "blocked");
   assert.equal(blockedGoal.timeUsed, "0s");
-  assert.equal("tokenBudget" in blockedGoal, false);
-  assert.equal("remainingTokens" in blocked.details, false);
-  assert.equal("completionBudgetReport" in blocked.details, false);
   assert.deepEqual(JSON.parse(blocked.content[0]?.text ?? ""), {
     goal: blocked.details.goal,
   });

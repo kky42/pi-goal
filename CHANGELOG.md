@@ -6,7 +6,7 @@
 
 - Sends `/goal` starts, resumes, and automatic continuations through the same visible `<pi-goal>` custom-message wrapper so the UI content matches the model-facing prompt.
 - Removes always-on goal tool prompt guidance and hidden active-goal provider context; `update_goal` guidance now appears only inside active goal work messages.
-- Removes token-budget prompting and budget-limited goal behavior from the simplified goal loop.
+- Removes legacy prompting/limit behavior from the simplified goal loop.
 - Persists goal snapshots through pi custom session entries again so session reloads can reconstruct active goals and host-overflow reset state.
 - Updates unit and real e2e coverage for interactive and headless goal-wrapper flows.
 
@@ -15,7 +15,7 @@
 - Temporarily masks model-facing `get_goal` and `create_goal`, leaving `update_goal` as the only registered goal tool.
 - Simplifies goal runtime state to in-memory snapshots and stops writing pi-goal custom session entries, reducing coupling to pi session persistence and compaction internals.
 - Sends goal continuations as pi-native user follow-ups and injects authoritative active-goal context before each provider call so repeated auto-compaction preserves the goal loop in-process.
-- Keeps headless `/goal <objective>` running through scheduled continuations and pending auto-compaction until the active goal is completed, blocked, paused, cleared, or budget-limited.
+- Keeps headless `/goal <objective>` running through scheduled continuations and pending auto-compaction until the active goal is completed, blocked, paused, or cleared.
 
 ## 1.0.2 - 2026-05-30
 
@@ -55,7 +55,7 @@
 - Bounds hidden goal continuation provider context by superseding older active-goal continuations with short bookkeeping markers, refreshing only the latest continuation, and using compact auto-continuation prompts after `/goal` start or resume.
 - Stops provider-error continuation retry storms by skipping immediate hidden requeues on `stopReason: "error"`, auto-compacting on context-window overflow when available, using bounded backoff for transient failures, and pausing with a recoverable `/goal resume` path when recovery is exhausted.
 - Makes goal lifecycle transitions terminal and idempotent: duplicate `update_goal complete` calls no longer append extra session entries, completed goals cannot be paused or resumed, and runtime/compaction skips unchanged goal snapshots.
-- Coalesces runtime goal persistence so repeated tool completions and unchanged compaction snapshots do not append full goal entries on every event; live footer usage stays current, and turn boundaries, shutdown, budget crossings, and bounded long-run intervals flush pending accounting to session history.
+- Coalesces runtime goal persistence so repeated tool completions and unchanged compaction snapshots do not append full goal entries on every event; live footer usage stays current, and turn boundaries, shutdown, and bounded long-run intervals flush pending accounting to session history.
 - Allows `create_goal` to replace a completed goal and clarifies recovery via `/goal <objective>` or `/goal clear`.
 - Surfaces failed goal tool calls as real pi tool errors by throwing from tool handlers.
 
@@ -79,11 +79,8 @@
 
 ## 0.1.9 - 2026-05-09
 
-- Escapes goal objectives in hidden continuation and budget-limit prompts before embedding them in XML-style untrusted blocks.
-- Keeps budget-limited goals from being paused or resumed back to active while they remain at or over budget.
-- Sends a one-shot hidden budget-limit steering message when token accounting crosses the configured budget.
+- Escapes goal objectives in hidden continuation prompts before embedding them in XML-style untrusted blocks.
 - Keeps ordinary user prompts from silently reactivating paused goals; session resume now prompts before restarting a paused goal.
-- Returns Codex-shaped goal tool responses with `remainingTokens` and completion budget reports.
 - Prevents tokens from an old in-flight turn from being charged to a replacement goal.
 - Updates `/goal` summary and footer labels toward Codex-style status wording while retaining this package's 8000-character objective limit.
 
@@ -106,7 +103,7 @@
 ## 0.1.5 - 2026-05-06
 
 - Counts goal tokens from completed assistant input plus output usage instead of `usage.totalTokens`.
-- Excludes cache read and cache write accounting channels from goal token budgets so cached provider tokens do not inflate sent and received totals.
+- Excludes cache read and cache write accounting channels from goal token accounting so cached provider tokens do not inflate sent and received totals.
 
 ## 0.1.4 - 2026-05-06
 

@@ -185,8 +185,8 @@ test("runtime persistence interval flush appends one entry then coalesces until 
   }
 });
 
-test("reconstructGoal uses the latest snapshot across dense legacy and coalesced entries", () => {
-  const goal = createThreadGoal("ship it", 100);
+test("reconstructGoal uses the latest snapshot across dense and coalesced entries", () => {
+  const goal = createThreadGoal("ship it");
   const denseEntries = Array.from({ length: 20 }, (_, index) => ({
     type: "custom" as const,
     customType: CUSTOM_ENTRY_TYPE,

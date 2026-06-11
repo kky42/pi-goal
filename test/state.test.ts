@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  formatBudget,
   formatDuration,
   formatFooterStatus,
   formatGoalSummary,
@@ -24,15 +23,14 @@ import {
 } from "../src/state.js";
 import { CUSTOM_ENTRY_TYPE } from "../src/types.js";
 
-test("createGoal validates and trims objectives without token budgets", () => {
+test("createGoal validates and trims objectives", () => {
   assert.equal(createGoal(null, "   ").ok, false);
 
-  const result = createGoal(null, " ship it ", 123);
+  const result = createGoal(null, " ship it ");
 
   assert.equal(result.ok, true);
   assert.equal(result.goal?.objective, "ship it");
   assert.equal(result.goal?.status, "active");
-  assert.equal(result.goal?.tokenBudget, undefined);
 });
 
 test("reconstructGoal follows branch-local set and clear entries", () => {
@@ -73,7 +71,7 @@ test("reconstructHostOverflowCapNeedsUserReset survives goal clear entries", () 
   assert.deepEqual(reconstructGoal(branch), { goal: null, hasGoal: false });
 });
 
-test("applyUsage accumulates supplied token and time deltas without budget limiting", () => {
+test("applyUsage accumulates supplied token and time deltas", () => {
   const created = createGoal(null, "finish").goal;
   assert.ok(created);
 
@@ -116,7 +114,6 @@ test("formatters produce simplified goal summaries", () => {
   assert.equal(formatDuration(92), "1m 32s");
   assert.equal(formatDuration(162_132), "45h 2m 12s");
   assert.match(formatLocalTimestamp(0), /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/);
-  assert.equal(formatBudget(used), "123K (123,456) tokens");
   assert.equal(formatGoalSummary(created), "Status: active\nObjective: finish\nHint: /goal pause, /goal clear");
   assert.equal(formatFooterStatus(used), "Pursuing goal");
 });

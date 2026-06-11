@@ -15,7 +15,6 @@ const activeGoal: ThreadGoal = {
   goalId: "goal-a",
   objective: "ship it",
   status: "active",
-  tokenBudget: null,
   usage: { tokensUsed: 0, activeSeconds: 0 },
   createdAt: 0,
   updatedAt: 0,

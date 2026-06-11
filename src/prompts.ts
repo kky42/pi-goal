@@ -77,8 +77,3 @@ export function supersededContinuationMessage(goalId: string): string {
 export function activeGoalContextPrompt(goal: ThreadGoal): string {
   return formatGoalWrapper(goal);
 }
-
-/** Deprecated compatibility export. Token budgets are no longer supported. */
-export function budgetLimitPrompt(goal: ThreadGoal): string {
-  return formatGoalWrapper(goal);
-}

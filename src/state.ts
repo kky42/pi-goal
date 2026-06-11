@@ -22,8 +22,12 @@ export function unixSeconds(): number {
 
 export function cloneGoal(goal: ThreadGoal): ThreadGoal {
   return {
-    ...goal,
+    goalId: goal.goalId,
+    objective: goal.objective,
+    status: goal.status,
     usage: { ...goal.usage },
+    createdAt: goal.createdAt,
+    updatedAt: goal.updatedAt,
   };
 }
 
@@ -50,11 +54,7 @@ export function validateObjective(objective: string): string | null {
   return null;
 }
 
-export function createThreadGoal(
-  objective: string,
-  _legacyTokenBudget?: number | null,
-  now = unixSeconds(),
-): ThreadGoal {
+export function createThreadGoal(objective: string, now = unixSeconds()): ThreadGoal {
   return {
     goalId: randomUUID(),
     objective: objective.trim(),
@@ -180,11 +180,7 @@ export function reconstructHostOverflowCapNeedsUserReset(entries: Iterable<Sessi
   return needsReset;
 }
 
-export function createGoal(
-  current: ThreadGoal | null,
-  objective: string,
-  _legacyTokenBudget?: number | null,
-): GoalResult {
+export function createGoal(current: ThreadGoal | null, objective: string): GoalResult {
   if (current && current.status !== "complete") {
     return {
       ok: false,
@@ -207,7 +203,7 @@ export function createGoal(
   };
 }
 
-export function replaceGoal(objective: string, _legacyTokenBudget?: number | null): GoalResult {
+export function replaceGoal(objective: string): GoalResult {
   const objectiveError = validateObjective(objective);
   if (objectiveError) {
     return { ok: false, message: objectiveError, goal: null };
@@ -305,9 +301,9 @@ export function applyUsage(
   tokensDelta: number,
   activeSecondsDelta: number,
   options: ApplyUsageOptions = {},
-): { goal: ThreadGoal | null; changed: boolean; crossedBudget: false } {
+): { goal: ThreadGoal | null; changed: boolean } {
   if (!current || current.status !== "active") {
-    return { goal: current, changed: false, crossedBudget: false };
+    return { goal: current, changed: false };
   }
 
   if (
@@ -315,13 +311,13 @@ export function applyUsage(
     options.expectedGoalId !== null &&
     current.goalId !== options.expectedGoalId
   ) {
-    return { goal: current, changed: false, crossedBudget: false };
+    return { goal: current, changed: false };
   }
 
   const tokens = Math.max(0, Math.trunc(tokensDelta));
   const seconds = Math.max(0, Math.trunc(activeSecondsDelta));
   if (tokens === 0 && seconds === 0) {
-    return { goal: current, changed: false, crossedBudget: false };
+    return { goal: current, changed: false };
   }
 
   const goal = cloneGoal(current);
@@ -329,7 +325,7 @@ export function applyUsage(
   goal.usage.activeSeconds += seconds;
   goal.updatedAt = unixSeconds();
 
-  return { goal, changed: true, crossedBudget: false };
+  return { goal, changed: true };
 }
 
 export function goalWithLiveUsage(

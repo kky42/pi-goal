@@ -12,8 +12,6 @@ export interface ThreadGoal {
 	goalId: string;
 	objective: string;
 	status: GoalStatus;
-	/** Legacy persisted goals may have this field; new pi-goal ignores token budgets. */
-	tokenBudget?: number | null;
 	usage: GoalUsage;
 	createdAt: number;
 	updatedAt: number;

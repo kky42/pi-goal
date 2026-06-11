@@ -38,8 +38,6 @@ If meaningful progress is impossible without user input or an external change, c
 </pi-goal>
 ```
 
-Token budgets and budget-limited goals are not supported in this simplified flow.
-
 ## Pi-Goal vs. Codex Goal
 
 | Area | Pi-Goal | Codex Goal |
@@ -50,6 +48,5 @@ Token budgets and budget-limited goals are not supported in this simplified flow
 | State | Stored in pi session entries for the current session tree | Stored in Codex's internal thread goal state |
 | Completion | Agent marks `complete` via `update_goal` from the active wrapper contract | Same completion-audit contract |
 | Blocked state | Agent can mark `blocked`; `/goal resume` reactivates paused or blocked goals | Same blocked/resume behavior |
-| Token budget | Not supported | Native Codex goal budget handling |
 | Prompting | No always-on goal system prompt; no hidden active-goal context | Managed by Codex internals |
 | Main difference | Codex-style goal behavior implemented as an inspectable pi extension | First-party Codex implementation |

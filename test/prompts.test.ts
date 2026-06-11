@@ -27,7 +27,6 @@ test("goal wrapper is the shared model-facing prompt", () => {
   assert.match(wrapper, /You are working on this active pi-goal/);
   assert.match(wrapper, /update_goal with \{"status":"complete"\}/);
   assert.match(wrapper, /update_goal with \{"status":"blocked"\}/);
-  assert.doesNotMatch(wrapper, /Token budget|Tokens remaining|Tokens used/);
 });
 
 test("goal wrapper escapes objective XML metacharacters", () => {
