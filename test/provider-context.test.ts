@@ -1,13 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { continuationGoalIdFromPrompt, continuationPrompt } from "../src/prompts.js";
+import { continuationPrompt } from "../src/prompts.js";
 import {
   createRuntimeHarness,
   emitProviderContext,
   emitQueuedTurnThroughContext,
   goalCustomContextMessage,
-  goalUserContextMessage,
   queuedCustomMessage,
 } from "./support/runtime-harness.js";
 
@@ -79,25 +78,4 @@ test("provider context preserves prior provider prefix across continuation turns
   assert.equal(secondMessage.content, secondContent);
   assert.match(firstContent, /<objective>\nship it\n<\/objective>/);
   assert.match(secondContent, /<objective>\nship it\n<\/objective>/);
-});
-
-test("active pasted legacy continuation input remains user content", async () => {
-  const harness = createRuntimeHarness();
-  await harness.runCommand("ship it");
-  const goal = harness.snapshot().goal;
-  assert.ok(goal);
-
-  const legacyPrompt = `<pi_goal_continuation goal_id="${goal.goalId}">\nlegacy\n</pi_goal_continuation>`;
-  await harness.emit("input", {
-    type: "input",
-    text: legacyPrompt,
-    source: "interactive",
-  });
-
-  const userMessage = goalUserContextMessage(legacyPrompt, 1);
-  const contextResults = await emitQueuedTurnThroughContext(harness, [userMessage], 0);
-
-  assert.equal(contextResults[0], undefined);
-  assert.equal(harness.snapshot().goal?.status, "active");
-  assert.equal(continuationGoalIdFromPrompt(legacyPrompt), goal.goalId);
 });

@@ -48,13 +48,9 @@ export interface GoalRuntimeStatusPort {
 }
 
 export interface GoalRuntimeContinuationPort {
-  bindPassthroughContinuationInputToTurn: (turnIndex: number) => void;
   clearContinuationState: () => void;
   clearContinuationStateFor: (goalId: string) => void;
   clearContinuationTimer: () => void;
-  clearPassthroughContinuationInput: () => void;
-  continuationGoalIdFromRuntimePrompt: (prompt: string) => string | null;
-  notePassthroughContinuationInput: (input: string) => void;
   requestContinuation: (ctx: ExtensionContext, kind?: GoalContinuationKind) => boolean;
 }
 
@@ -102,7 +98,7 @@ export interface GoalRuntimeTurnHandlerContext extends StaleQueuedWorkEffectCont
     GoalStateController,
     "beginOverflowRecovery" | "flushGoalPersistence" | "maybeFlushRuntimePersistence" | "pauseForAbort"
   >;
-  continuation: Pick<GoalRuntimeContinuationPort, "bindPassthroughContinuationInputToTurn">;
+  continuation: Pick<GoalRuntimeContinuationPort, never>;
   goalAccounting: GoalAccountingPort;
   recoveryRuntime: Pick<RecoveryRuntimePort, "finishSuccessfulAssistantTurn">;
 }
@@ -110,10 +106,7 @@ export interface GoalRuntimeTurnHandlerContext extends StaleQueuedWorkEffectCont
 export interface GoalRuntimeAgentHandlerContext extends StaleQueuedWorkEffectContext {
   runtimeState: Pick<GoalRuntimeState, "staleQueuedWorkGuard">;
   stateController: Pick<GoalStateController, "beginOverflowRecovery" | "flushGoalPersistence" | "pauseForAbort">;
-  continuation: Pick<
-    GoalRuntimeContinuationPort,
-    "clearPassthroughContinuationInput" | "requestContinuation"
-  >;
+  continuation: Pick<GoalRuntimeContinuationPort, "requestContinuation">;
   goalAccounting: Pick<GoalAccountingPort, "accountProgress">;
   recoveryRuntime: Pick<
     RecoveryRuntimePort,
@@ -128,10 +121,7 @@ export interface GoalRuntimeSessionHandlerContext extends StaleQueuedWorkEffectC
     GoalStateController,
     "applyGoalTransition" | "flushGoalPersistence" | "getGoal" | "reloadFromSession" | "resumePausedGoal"
   >;
-  continuation: Pick<
-    GoalRuntimeContinuationPort,
-    "clearContinuationTimer" | "clearPassthroughContinuationInput" | "requestContinuation"
-  >;
+  continuation: Pick<GoalRuntimeContinuationPort, "clearContinuationTimer" | "requestContinuation">;
   goalAccounting: GoalAccountingPort;
   recoveryRuntime: Pick<RecoveryRuntimePort, "onSessionCompact">;
   resetErrorRecovery: () => void;

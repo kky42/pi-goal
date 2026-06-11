@@ -82,7 +82,6 @@ test("session resume prompt can reactivate a paused goal", async () => {
     assert.fail("Expected session resume to send a scheduler continuation prompt.");
   }
   assert.match(content, /<objective>\nship it\n<\/objective>/);
-  assert.doesNotMatch(content, /<pi_goal_continuation/);
 });
 
 test("completed turns count input plus output and continue active goals", async () => {
@@ -331,7 +330,6 @@ test("auto-queued continuations use the Codex-style objective prompt without vis
   assert.ok(commandStart);
   const startPrompt = String(commandStart.message.content);
   assert.match(startPrompt, /<objective>\nship it\n<\/objective>/);
-  assert.doesNotMatch(startPrompt, /<pi_goal_continuation/);
 
   harness.sentMessages.length = 0;
   await harness.emit("before_agent_start", {
@@ -349,7 +347,6 @@ test("auto-queued continuations use the Codex-style objective prompt without vis
   assert.ok(continuation);
   const content = String(continuation.message.content);
   assert.match(content, /<objective>\nship it\n<\/objective>/);
-  assert.doesNotMatch(content, /<pi_goal_continuation/);
   assert.doesNotMatch(content, new RegExp(String(harness.snapshot().goal?.goalId)));
   assert.doesNotMatch(content, /get_goal/);
   assert.doesNotMatch(content, /create_goal/);

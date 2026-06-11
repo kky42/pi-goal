@@ -1,6 +1,6 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 
-import { continuationGoalIdFromPrompt, formatGoalWrapper } from "./prompts.js";
+import { formatGoalWrapper } from "./prompts.js";
 import {
   recoveryPhaseBlocksContinuation,
   type GoalRecoveryMachineState,
@@ -15,14 +15,12 @@ interface ContinuationSchedulerDeps {
   getGoal: () => ThreadGoal | null;
   getRecoveryState: () => GoalRecoveryMachineState;
   staleQueuedWorkGuard: StaleQueuedWorkGuard;
-  getCurrentTurnIndex: () => number | null;
 }
 
 export function createContinuationScheduler(deps: ContinuationSchedulerDeps) {
   let continuationQueuedFor: string | null = null;
   let continuationScheduledFor: string | null = null;
   let continuationTimer: ReturnType<typeof setTimeout> | null = null;
-  let passthroughContinuationInput: { text: string; turnIndex: number | null } | null = null;
 
   const clearContinuationTimer = (): void => {
     if (continuationTimer) {
@@ -48,45 +46,6 @@ export function createContinuationScheduler(deps: ContinuationSchedulerDeps) {
 
   const markContinuationQueued = (goalId: string): void => {
     continuationQueuedFor = goalId;
-  };
-
-  const clearPassthroughContinuationInput = (): void => {
-    passthroughContinuationInput = null;
-  };
-
-  const bindPassthroughContinuationInputToTurn = (turnIndex: number): void => {
-    if (!passthroughContinuationInput) {
-      return;
-    }
-    if (passthroughContinuationInput.turnIndex === null) {
-      passthroughContinuationInput = { ...passthroughContinuationInput, turnIndex };
-      return;
-    }
-    if (passthroughContinuationInput.turnIndex !== turnIndex) {
-      clearPassthroughContinuationInput();
-    }
-  };
-
-  const isPassthroughContinuationInput = (text: string): boolean => {
-    if (!passthroughContinuationInput || passthroughContinuationInput.text !== text) {
-      return false;
-    }
-    const currentTurnIndex = deps.getCurrentTurnIndex();
-    return (
-      passthroughContinuationInput.turnIndex === null ||
-      passthroughContinuationInput.turnIndex === currentTurnIndex
-    );
-  };
-
-  const continuationGoalIdFromRuntimePrompt = (prompt: string): string | null => {
-    if (isPassthroughContinuationInput(prompt)) {
-      return null;
-    }
-    return continuationGoalIdFromPrompt(prompt);
-  };
-
-  const notePassthroughContinuationInput = (text: string): void => {
-    passthroughContinuationInput = { text, turnIndex: null };
   };
 
   const hasPendingRecoveryAttention = (): boolean => {
@@ -165,14 +124,10 @@ export function createContinuationScheduler(deps: ContinuationSchedulerDeps) {
   };
 
   return {
-    bindPassthroughContinuationInputToTurn,
     clearContinuationState,
     clearContinuationStateFor,
     clearContinuationTimer,
-    clearPassthroughContinuationInput,
-    continuationGoalIdFromRuntimePrompt,
     markContinuationQueued,
-    notePassthroughContinuationInput,
     requestContinuation,
   };
 }

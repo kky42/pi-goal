@@ -8,7 +8,7 @@ import {
   formatLocalTimestamp,
   formatTokenValue,
 } from "../src/format.js";
-import { continuationPrompt, TOOL_PROMPT_GUIDELINES } from "../src/prompts.js";
+import { continuationPrompt } from "../src/prompts.js";
 import {
   applyUsage,
   clearEntry,
@@ -191,10 +191,6 @@ test("createGoal replaces completed goals and rejects non-complete duplicates", 
     assert.equal(createGoal(current, "next").ok, false);
     assert.match(createGoal(current, "next").message ?? "", /non-complete goal/);
   }
-});
-
-test("model-facing tool prompt guidelines are absent", () => {
-  assert.deepEqual(TOOL_PROMPT_GUIDELINES, []);
 });
 
 test("goalsEquivalent compares full goal snapshots", () => {

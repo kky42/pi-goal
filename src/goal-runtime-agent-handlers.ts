@@ -14,7 +14,6 @@ export function createAgentEventHandlers(deps: GoalRuntimeAgentHandlerContext) {
 
   return {
     onAgentEnd: (async (event, ctx) => {
-      continuation.clearPassthroughContinuationInput();
       if (runStaleQueuedWorkPlan(runtimeState.staleQueuedWorkGuard.planAgentEnd(event.messages), ctx, deps)) {
         return;
       }

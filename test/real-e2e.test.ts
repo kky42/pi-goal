@@ -415,7 +415,6 @@ test(
         assert.fail("Expected continuation details to include a hidden goalId.");
       }
       const firstContinuationContent = firstContinuation.content as string;
-      assert.doesNotMatch(firstContinuationContent, /<pi_goal_continuation/);
       assert.doesNotMatch(firstContinuationContent, new RegExp(firstContinuationGoalId));
 
       const userMessageIndex = (providerMessages as JsonObject[]).findIndex((message) => {
@@ -603,7 +602,6 @@ test(
           assert.fail("Expected hidden continuation metadata to include goalId.");
         }
         const content = continuation.content as string;
-        assert.doesNotMatch(content, /<pi_goal_continuation/);
         assert.doesNotMatch(content, new RegExp(goalId));
         assert.match(content, /<objective>/);
       }

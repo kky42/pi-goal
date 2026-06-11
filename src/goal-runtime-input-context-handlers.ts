@@ -6,7 +6,6 @@ import type {
   InputEventResult,
 } from "@earendil-works/pi-coding-agent";
 
-import { continuationGoalIdFromPrompt } from "./prompts.js";
 import { applyQueuedGoalProviderContextRewrites, extensionQueuedGoalWorkMessageId } from "./queued-goal-work.js";
 import { isActiveGoalQueuedDetails, isCommandResumeQueuedGoalMessage } from "./queued-goal-messages.js";
 import { applyStaleQueuedWorkEffects } from "./goal-runtime-event-utils.js";
@@ -36,8 +35,7 @@ export function createInputContextEventHandlers(
 
   return {
     onInput: (async (event, ctx) => {
-      continuation.clearPassthroughContinuationInput();
-      const continuationGoalId = goalIdFromEventDetails(event) ?? continuationGoalIdFromPrompt(event.text);
+      const continuationGoalId = goalIdFromEventDetails(event);
 
       if (event.source !== "extension") {
         recoveryRuntime.onUserInput();
@@ -46,9 +44,6 @@ export function createInputContextEventHandlers(
           ctx,
           deps,
         );
-        if (continuationGoalId !== null) {
-          continuation.notePassthroughContinuationInput(event.text);
-        }
         return undefined;
       }
 
@@ -92,8 +87,7 @@ export function createInputContextEventHandlers(
     }) satisfies ExtensionHandler<ContextEvent, ContextEventResult | undefined>,
 
     onBeforeAgentStart: (async (event, ctx) => {
-      const continuationGoalId =
-        goalIdFromEventDetails(event) ?? continuation.continuationGoalIdFromRuntimePrompt(event.prompt);
+      const continuationGoalId = goalIdFromEventDetails(event);
       if (continuationGoalId !== null) {
         continuation.clearContinuationStateFor(continuationGoalId);
         if (!stateController.isCurrentActiveGoalId(continuationGoalId)) {

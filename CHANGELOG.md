@@ -2,11 +2,13 @@
 
 ## Unreleased
 
+- Removes old continuation-marker parsing and compatibility prompt exports; queued goal work is identified by message metadata only.
+
 ## 1.0.4 - 2026-06-11
 
 - Sends `/goal` starts, resumes, and automatic continuations through the same visible `<pi-goal>` custom-message wrapper so the UI content matches the model-facing prompt.
 - Removes always-on goal tool prompt guidance and hidden active-goal provider context; `update_goal` guidance now appears only inside active goal work messages.
-- Removes legacy prompting/limit behavior from the simplified goal loop.
+- Removes obsolete prompting/limit behavior from the simplified goal loop.
 - Persists goal snapshots through pi custom session entries again so session reloads can reconstruct active goals and host-overflow reset state.
 - Updates unit and real e2e coverage for interactive and headless goal-wrapper flows.
 

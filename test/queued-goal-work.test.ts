@@ -5,9 +5,8 @@ import { toQueuedGoalContextCarrier, toQueuedGoalWorkSource } from "../src/queue
 import {
   applyQueuedGoalProviderContextRewrites,
   extensionQueuedGoalWorkMessageId,
-  extensionQueuedGoalWorkMessageIdForRuntime,
 } from "../src/queued-goal-work.js";
-import { continuationGoalIdFromPrompt, continuationPrompt } from "../src/prompts.js";
+import { continuationPrompt } from "../src/prompts.js";
 import type { ThreadGoal } from "../src/types.js";
 import { goalCustomContextMessage, goalUserContextMessage } from "./support/runtime-harness.js";
 
@@ -20,8 +19,7 @@ const activeGoal: ThreadGoal = {
   updatedAt: 0,
 };
 
-const resolveStaleQueuedGoalWorkMessageId = (message: Parameters<typeof extensionQueuedGoalWorkMessageIdForRuntime>[0]) =>
-  extensionQueuedGoalWorkMessageIdForRuntime(message, continuationGoalIdFromPrompt);
+const resolveStaleQueuedGoalWorkMessageId = extensionQueuedGoalWorkMessageId;
 
 test("toQueuedGoalWorkSource ignores unrelated custom messages", () => {
   const unrelated = toQueuedGoalContextCarrier({

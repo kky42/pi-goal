@@ -7,13 +7,8 @@ import {
   emitProviderContext,
   emitQueuedTurnThroughContext,
   goalCustomContextMessage,
-  goalUserContextMessage,
   queuedCustomMessage,
 } from "./support/runtime-harness.js";
-
-function legacyContinuationPrompt(goalId: string): string {
-  return `<pi_goal_continuation goal_id="${goalId}">\nlegacy\n</pi_goal_continuation>`;
-}
 
 test("stale metadata continuation input is handled before agent start", async () => {
   const harness = createRuntimeHarness();
@@ -37,53 +32,6 @@ test("stale metadata continuation input is handled before agent start", async ()
   assert.equal(harness.snapshot().goal?.status, "complete");
   assert.equal(harness.abortCount, 0);
 });
-
-for (const source of ["interactive", "rpc"] as const) {
-  test(`pasted continuation marker input from ${source} is not swallowed`, async () => {
-    const harness = createRuntimeHarness();
-    await harness.runCommand("ship it");
-    const goalId = harness.snapshot().goal?.goalId;
-    assert.ok(goalId);
-    const prompt = legacyContinuationPrompt(goalId);
-
-    await harness.runTool("update_goal", { status: "complete" });
-    const inputResults = await harness.emit("input", {
-      type: "input",
-      text: prompt,
-      source,
-    });
-    assert.equal(inputResults[0], undefined);
-
-    const beforeAgentStartResults = await harness.emit("before_agent_start", {
-      type: "before_agent_start",
-      prompt,
-      systemPrompt: "base prompt",
-      systemPromptOptions: {},
-    });
-    assert.equal(beforeAgentStartResults[0], undefined);
-
-    const userMessage = goalUserContextMessage(prompt, 1);
-    const contextResults = await emitQueuedTurnThroughContext(harness, [userMessage], 0);
-    const secondContextResults = await emitProviderContext(harness, [userMessage]);
-
-    assert.equal(contextResults[0], undefined);
-    assert.equal(secondContextResults[0], undefined);
-    assert.equal(harness.snapshot().goal?.status, "complete");
-    assert.equal(harness.abortCount, 0);
-
-    await harness.emit("turn_end", {
-      type: "turn_end",
-      turnIndex: 0,
-      message: assistantMessage("stop", { input: 1, output: 1 }),
-      toolResults: [],
-    });
-
-    const laterUserMessage = goalUserContextMessage(prompt, 2);
-    const laterContextResults = await emitQueuedTurnThroughContext(harness, [laterUserMessage], 1);
-    assert.equal(laterContextResults[0], undefined);
-    assert.equal(harness.abortCount, 1);
-  });
-}
 
 test("stale queued continuation metadata aborts if the goal became complete before launch", async () => {
   const harness = createRuntimeHarness();
@@ -136,14 +84,13 @@ test("stale custom goal work messages are preserved in provider context until ru
   assert.equal(harness.abortCount, 1);
 });
 
-test("stale provider context is not rewritten for queued work kinds or legacy prompt markers", async () => {
+test("stale provider context is not rewritten for queued work kinds", async () => {
   const harness = createRuntimeHarness();
   await harness.runCommand("ship it");
   const queued = harness.sentMessages[0];
   assert.ok(queued);
   const queuedGoalId = harness.snapshot().goal?.goalId;
   assert.ok(queuedGoalId);
-  const prompt = legacyContinuationPrompt(queuedGoalId);
 
   await harness.runTool("update_goal", { status: "complete" });
   const staleMessages = [
@@ -162,12 +109,6 @@ test("stale provider context is not rewritten for queued work kinds or legacy pr
       details: { kind: "command_resume", goalId: queuedGoalId },
       timestamp: 1,
     }),
-    goalCustomContextMessage({
-      content: prompt,
-      details: { kind: "other", goalId: queuedGoalId },
-      timestamp: 1,
-    }),
-    goalUserContextMessage(prompt, 1),
   ];
 
   const results = await emitProviderContext(harness, staleMessages);
@@ -175,78 +116,6 @@ test("stale provider context is not rewritten for queued work kinds or legacy pr
   assert.deepEqual(staleMessages[0]?.content, "queued by details");
   assert.deepEqual(staleMessages[1]?.content, "queued by details");
   assert.deepEqual(staleMessages[2]?.content, "queued by details");
-  assert.deepEqual(staleMessages[3]?.content, prompt);
-  assert.deepEqual(staleMessages[4], goalUserContextMessage(prompt, 1));
-});
-
-test("stale prompt-based queued work does not pause or charge a replacement goal", async () => {
-  const harness = createRuntimeHarness();
-  await harness.runCommand("old goal");
-  const oldGoalId = harness.snapshot().goal?.goalId;
-  assert.ok(oldGoalId);
-  const oldPrompt = legacyContinuationPrompt(oldGoalId);
-  const oldMessage = goalUserContextMessage(oldPrompt, 1);
-
-  await harness.runCommand("new goal");
-  const replacement = harness.snapshot().goal;
-  assert.equal(replacement?.objective, "new goal");
-  harness.sentMessages.length = 0;
-
-  await emitQueuedTurnThroughContext(harness, [oldMessage]);
-  assert.equal(harness.abortCount, 1);
-
-  await harness.emit("turn_end", {
-    type: "turn_end",
-    turnIndex: 0,
-    message: assistantMessage("aborted", { input: 20, output: 5 }),
-    toolResults: [],
-  });
-  await harness.emit("agent_end", {
-    type: "agent_end",
-    messages: [assistantMessage("aborted", { input: 20, output: 5 })],
-  });
-
-  const goal = harness.snapshot().goal;
-  assert.equal(goal?.goalId, replacement?.goalId);
-  assert.equal(goal?.status, "active");
-  assert.equal(goal?.usage.tokensUsed, 0);
-  assert.equal(harness.abortCount, 1);
-  assert.equal(harness.sentMessages.length, 0);
-});
-
-test("stale prompt-based queued work with stop terminal does not corrupt replacement goal", async () => {
-  const harness = createRuntimeHarness();
-  await harness.runCommand("old goal");
-  const oldGoalId = harness.snapshot().goal?.goalId;
-  assert.ok(oldGoalId);
-  const oldPrompt = legacyContinuationPrompt(oldGoalId);
-  const oldMessage = goalUserContextMessage(oldPrompt, 1);
-
-  await harness.runCommand("new goal");
-  const replacement = harness.snapshot().goal;
-  assert.equal(replacement?.objective, "new goal");
-  harness.sentMessages.length = 0;
-
-  await emitQueuedTurnThroughContext(harness, [oldMessage]);
-  assert.equal(harness.abortCount, 1);
-
-  await harness.emit("turn_end", {
-    type: "turn_end",
-    turnIndex: 0,
-    message: assistantMessage("stop", { input: 20, output: 5 }),
-    toolResults: [],
-  });
-  await harness.emit("agent_end", {
-    type: "agent_end",
-    messages: [assistantMessage("stop", { input: 20, output: 5 })],
-  });
-
-  const goal = harness.snapshot().goal;
-  assert.equal(goal?.goalId, replacement?.goalId);
-  assert.equal(goal?.status, "active");
-  assert.equal(goal?.usage.tokensUsed, 0);
-  assert.equal(harness.abortCount, 1);
-  assert.equal(harness.sentMessages.length, 0);
 });
 
 test("stale custom queued work aborts without pausing, charging, or requeueing a replacement goal", async () => {

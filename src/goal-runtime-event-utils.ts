@@ -1,13 +1,12 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 import type {
-  GoalRuntimeContinuationPort,
   GoalRuntimeOverflowRecoveryContext,
   QueuedGoalWorkMessage,
   QueuedGoalWorkMessageIdResolver,
   StaleQueuedWorkEffectContext,
 } from "./goal-runtime-event-handler-types.js";
-import { extensionQueuedGoalWorkMessageIdForRuntime } from "./queued-goal-work.js";
+import { extensionQueuedGoalWorkMessageId } from "./queued-goal-work.js";
 import {
   isAssistantContextOverflow,
   isContextOverflowError,
@@ -49,14 +48,8 @@ export function runStaleQueuedWorkPlan(
   return plan.skip;
 }
 
-export function createQueuedGoalWorkMessageIdResolver(
-  continuation: GoalRuntimeContinuationPort,
-): QueuedGoalWorkMessageIdResolver {
-  return (message: QueuedGoalWorkMessage): string | null =>
-    extensionQueuedGoalWorkMessageIdForRuntime(
-      message,
-      continuation.continuationGoalIdFromRuntimePrompt,
-    );
+export function createQueuedGoalWorkMessageIdResolver(): QueuedGoalWorkMessageIdResolver {
+  return (message: QueuedGoalWorkMessage): string | null => extensionQueuedGoalWorkMessageId(message);
 }
 
 export function getContextWindow(ctx: ExtensionContext): number {

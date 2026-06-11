@@ -13,12 +13,11 @@ import type {
 } from "./goal-runtime-event-handler-types.js";
 
 export function createTurnEventHandlers(deps: GoalRuntimeTurnHandlerContext) {
-  const { runtimeState, stateController, continuation, goalAccounting, recoveryRuntime, status } = deps;
+  const { runtimeState, stateController, goalAccounting, recoveryRuntime, status } = deps;
 
   return {
     onTurnStart: (async (event, ctx) => {
       runtimeState.currentTurnIndex = event.turnIndex;
-      continuation.bindPassthroughContinuationInputToTurn(event.turnIndex);
       runStaleQueuedWorkPlan(runtimeState.staleQueuedWorkGuard.planTurnStart(), ctx, deps);
       goalAccounting.beginAccounting();
       status.refreshUi(ctx);

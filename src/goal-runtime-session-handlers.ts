@@ -86,7 +86,6 @@ export function createSessionEventHandlers(deps: GoalRuntimeSessionHandlerContex
 
     onSessionShutdown: (async (_event, ctx) => {
       runtimeState.compactionInFlight = false;
-      continuation.clearPassthroughContinuationInput();
       applyStaleQueuedWorkEffects(runtimeState.staleQueuedWorkGuard.planSessionShutdown().effects, ctx, deps);
 
       goalAccounting.accountProgress(ctx, false, 0, true);
