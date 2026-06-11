@@ -9,7 +9,6 @@ import type {
 } from "./goal-runtime-event-handler-types.js";
 
 export type {
-  ContextEventResult,
   GoalRuntimeEventHandlers,
   MessageStartEvent,
   ToolExecutionEndEvent,

@@ -7,7 +7,7 @@ import type { GoalEntrySource, GoalResult, ThreadGoal } from "./types.js";
 
 const UpdateGoalParams = Type.Object({
   status: StringEnum(["complete", "blocked"] as const, {
-    description: "New status for the active pi-goal.",
+    description: "New status for the active goal.",
   }),
 });
 
@@ -34,7 +34,7 @@ export function registerGoalTools(pi: ExtensionAPI, host: ToolHost): void {
   pi.registerTool({
     name: "update_goal",
     label: "Update Goal",
-    description: "Update the active pi-goal status to complete or blocked.",
+    description: "Update the active goal status to complete or blocked.",
     parameters: UpdateGoalParams,
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const result = host.updateGoal(params.status, "tool", ctx);

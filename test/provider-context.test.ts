@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { continuationPrompt } from "../src/prompts.js";
+import { formatGoalWrapper } from "../src/prompts.js";
 import {
   createRuntimeHarness,
   emitProviderContext,
@@ -16,11 +16,11 @@ test("provider context preserves active continuation messages byte-for-byte", as
   const goal = harness.snapshot().goal;
   assert.ok(goal);
 
-  const olderContent = continuationPrompt({
+  const olderContent = formatGoalWrapper({
     ...goal,
     usage: { tokensUsed: 1, activeSeconds: 1 },
   });
-  const latestContent = continuationPrompt({
+  const latestContent = formatGoalWrapper({
     ...goal,
     usage: { tokensUsed: 99, activeSeconds: 42 },
   });

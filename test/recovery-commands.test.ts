@@ -1,8 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { continuationPrompt } from "../src/prompts.js";
-import { isGoalCustomEntry } from "../src/state.js";
+import { formatGoalWrapper } from "../src/prompts.js";import { isGoalCustomEntry } from "../src/state.js";
 import { CUSTOM_ENTRY_TYPE } from "../src/types.js";
 import {
   createRuntimeHarness,
@@ -109,7 +108,7 @@ test("custom command_resume goal work resets host recovery cap at admission", as
     message: {
       role: "custom",
       customType: CUSTOM_ENTRY_TYPE,
-      content: continuationPrompt(goal),
+      content: formatGoalWrapper(goal),
       display: false,
       details: { kind: "command_resume", goalId: goal.goalId },
     },
@@ -125,7 +124,7 @@ test("custom command_start goal work resets host recovery cap at admission", asy
     message: {
       role: "custom",
       customType: CUSTOM_ENTRY_TYPE,
-      content: continuationPrompt(goal),
+      content: formatGoalWrapper(goal),
       display: false,
       details: { kind: "command_start", goalId: goal.goalId },
     },

@@ -22,13 +22,12 @@ import type { GoalStateController } from "./goal-state-controller.js";
 import type { GoalContinuationKind } from "./types.js";
 import type { AssistantErrorMessage } from "./recovery.js";
 
-export type ContextEventResult = { messages?: ContextEvent["messages"] };
 export type MessageStartEvent = Extract<ExtensionEvent, { type: "message_start" }>;
 export type ToolExecutionEndEvent = Extract<ExtensionEvent, { type: "tool_execution_end" }>;
 
 export interface GoalRuntimeEventHandlers {
   onInput: ExtensionHandler<InputEvent, InputEventResult>;
-  onContext: ExtensionHandler<ContextEvent, ContextEventResult | undefined>;
+  onContext: ExtensionHandler<ContextEvent, undefined>;
   onSessionStart: ExtensionHandler<SessionStartEvent>;
   onSessionTree: ExtensionHandler<SessionTreeEvent>;
   onBeforeAgentStart: ExtensionHandler<BeforeAgentStartEvent, undefined>;
@@ -85,7 +84,7 @@ export interface GoalRuntimeInputContextHandlerContext extends StaleQueuedWorkEf
   runtimeState: Pick<GoalRuntimeState, "currentTurnIndex" | "staleQueuedWorkGuard">;
   stateController: Pick<
     GoalStateController,
-    "getGoal" | "isCurrentActiveGoalId" | "persistHostOverflowUserReset"
+    "isCurrentActiveGoalId" | "persistHostOverflowUserReset"
   >;
   continuation: GoalRuntimeContinuationPort;
   recoveryRuntime: Pick<RecoveryRuntimePort, "onUserInput">;

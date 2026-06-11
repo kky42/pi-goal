@@ -6,11 +6,9 @@ import type {
   InputEventResult,
 } from "@earendil-works/pi-coding-agent";
 
-import { applyQueuedGoalProviderContextRewrites, extensionQueuedGoalWorkMessageId } from "./queued-goal-work.js";
 import { isActiveGoalQueuedDetails, isCommandResumeQueuedGoalMessage } from "./queued-goal-messages.js";
 import { applyStaleQueuedWorkEffects } from "./goal-runtime-event-utils.js";
 import type {
-  ContextEventResult,
   GoalRuntimeInputContextHandlerContext,
   MessageStartEvent,
   QueuedGoalWorkMessageIdResolver,
@@ -65,17 +63,7 @@ export function createInputContextEventHandlers(
       return { action: "handled" } as const;
     }) satisfies ExtensionHandler<InputEvent, InputEventResult>,
 
-    onContext: (async (event, ctx) => {
-      const goal = stateController.getGoal();
-      const rewrite = applyQueuedGoalProviderContextRewrites(event.messages, {
-        goal,
-        resolveStaleQueuedGoalWorkMessageId: queuedGoalWorkMessageIdForRuntime,
-        resolveActiveContinuationQueuedGoalWorkMessageId: extensionQueuedGoalWorkMessageId,
-      });
-
-      const contextMessages = rewrite.messages;
-      const changed = rewrite.changed || contextMessages.length !== event.messages.length;
-
+    onContext: (async (_event, ctx) => {
       const contextAbortPlan = runtimeState.staleQueuedWorkGuard.planContextAbort(
         runtimeState.currentTurnIndex,
       );
@@ -83,8 +71,8 @@ export function createInputContextEventHandlers(
         applyStaleQueuedWorkEffects(contextAbortPlan.effects, ctx, deps);
       }
 
-      return changed ? { messages: contextMessages } : undefined;
-    }) satisfies ExtensionHandler<ContextEvent, ContextEventResult | undefined>,
+      return undefined;
+    }) satisfies ExtensionHandler<ContextEvent, undefined>,
 
     onBeforeAgentStart: (async (event, ctx) => {
       const continuationGoalId = goalIdFromEventDetails(event);

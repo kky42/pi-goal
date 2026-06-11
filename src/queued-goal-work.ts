@@ -2,18 +2,10 @@ import {
   isActiveGoalQueuedDetails,
   type QueuedGoalContextInput,
 } from "./queued-goal-messages.js";
-import { CUSTOM_ENTRY_TYPE, type ThreadGoal } from "./types.js";
-
-function isSupersededContinuationDetails(details: unknown): boolean {
-  return details !== null && typeof details === "object" && (details as { kind?: unknown }).kind === "superseded_continuation";
-}
+import { CUSTOM_ENTRY_TYPE } from "./types.js";
 
 export function extensionQueuedGoalWorkMessageId(message: QueuedGoalContextInput): string | null {
   if (message.role !== "custom" || message.customType !== CUSTOM_ENTRY_TYPE) {
-    return null;
-  }
-
-  if (isSupersededContinuationDetails(message.details)) {
     return null;
   }
 
@@ -22,17 +14,6 @@ export function extensionQueuedGoalWorkMessageId(message: QueuedGoalContextInput
   }
 
   return null;
-}
-
-export function applyQueuedGoalProviderContextRewrites<TMessage extends QueuedGoalContextInput>(
-  messages: readonly TMessage[],
-  _options: {
-    goal: ThreadGoal | null;
-    resolveStaleQueuedGoalWorkMessageId: (message: QueuedGoalContextInput) => string | null;
-    resolveActiveContinuationQueuedGoalWorkMessageId: (message: QueuedGoalContextInput) => string | null;
-  },
-): { messages: TMessage[]; changed: boolean } {
-  return { messages: [...messages], changed: false };
 }
 
 export function agentEndMessagesIncludeQueuedGoalWork(

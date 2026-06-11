@@ -18,24 +18,24 @@ Use `/goal` from any pi session:
 /goal clear
 ```
 
-`/goal <objective>` creates an active thread goal, shows `Goal set.`, and sends the agent a visible goal-wrapper message. The same wrapper is used for initial goal starts, resumes, and automatic continuations, so the UI shows the same goal contract that the agent receives. `update_goal` remains registered as the only goal tool; pi-goal no longer adds always-on goal guidance to the system prompt or injects hidden active-goal context.
+`/goal <objective>` creates an active thread goal, shows `Goal set.`, and sends the agent a visible goal-wrapper message. The same wrapper is used for initial goal starts, resumes, and automatic continuations, so the UI shows the same goal contract that the agent receives. `update_goal` remains registered as the only goal tool; the extension no longer adds always-on goal guidance to the system prompt or injects hidden active-goal context.
 
 Model-facing wrapper shape:
 
 ```xml
-<pi-goal>
+<goal>
 <objective>
 ...
 </objective>
 <instructions>
-You are working on this active pi-goal.
+You are working on this active goal.
 Keep making concrete progress toward the objective when low-risk next steps are available.
 Do not redefine success around a smaller or easier task.
 Before declaring success, verify the objective against current evidence.
 When the objective is fully achieved and no required work remains, call update_goal with {"status":"complete"}.
 If meaningful progress is impossible without user input or an external change, call update_goal with {"status":"blocked"}.
 </instructions>
-</pi-goal>
+</goal>
 ```
 
 ## Pi-Goal vs. Codex Goal
