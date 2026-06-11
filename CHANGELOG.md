@@ -2,7 +2,11 @@
 
 ## Unreleased
 
+## 1.0.5 - 2026-06-11
+
 - Removes old continuation-marker parsing, superseded-continuation bookkeeping, provider-context rewrite shell, and compatibility prompt exports; queued goal work is identified by message metadata only.
+- Tightens the `update_goal` tool description so agents are told not to call it unless they are working inside an active `<goal>` message.
+- Adds a provider-backed e2e regression for ordinary prompts with `Goal:` sections and runs real e2e tests three times by default (`PI_GOAL_REAL_E2E_REPEATS` overrides this).
 
 ## 1.0.4 - 2026-06-11
 

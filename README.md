@@ -18,7 +18,7 @@ Use `/goal` from any pi session:
 /goal clear
 ```
 
-`/goal <objective>` creates an active thread goal, shows `Goal set.`, and sends the agent a visible goal-wrapper message. The same wrapper is used for initial goal starts, resumes, and automatic continuations, so the UI shows the same goal contract that the agent receives. `update_goal` remains registered as the only goal tool; the extension no longer adds always-on goal guidance to the system prompt or injects hidden active-goal context.
+`/goal <objective>` creates an active thread goal, shows `Goal set.`, and sends the agent a visible goal-wrapper message. The same wrapper is used for initial goal starts, resumes, and automatic continuations, so the UI shows the same goal contract that the agent receives. `update_goal` remains registered as the only goal tool, but its model-facing description tells agents to call it only while working inside an active `<goal>` message. The extension no longer adds always-on goal guidance to the system prompt or injects hidden active-goal context.
 
 Model-facing wrapper shape:
 

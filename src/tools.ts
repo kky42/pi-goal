@@ -34,7 +34,8 @@ export function registerGoalTools(pi: ExtensionAPI, host: ToolHost): void {
   pi.registerTool({
     name: "update_goal",
     label: "Update Goal",
-    description: "Update the active goal status to complete or blocked.",
+    description:
+      "Only call this if you are currently working inside an active <goal> message. If no active goal was provided in this conversation, do not call this tool.",
     parameters: UpdateGoalParams,
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const result = host.updateGoal(params.status, "tool", ctx);

@@ -8,6 +8,9 @@ import { test } from "node:test";
 import { setTimeout as sleep } from "node:timers/promises";
 
 const REAL_E2E_ENABLED = process.env.PI_GOAL_REAL_E2E === "1";
+const REAL_E2E_REPEATS = REAL_E2E_ENABLED
+  ? Math.max(1, Number.parseInt(process.env.PI_GOAL_REAL_E2E_REPEATS ?? "3", 10) || 3)
+  : 1;
 const MODEL = "deepseek/deepseek-v4-flash";
 const THINKING = "high";
 const EXTENSION_PATH = path.resolve("src/index.ts");
@@ -312,9 +315,74 @@ function createRpcSession(child: ChildProcessWithoutNullStreams, sessionDir: str
   return { events, responses, sessionDir, send, waitFor, close };
 }
 
-test(
+function realE2eTest(name: string, timeout: number, fn: () => Promise<void>): void {
+  test(
+    name,
+    {
+      skip: REAL_E2E_ENABLED ? false : "set PI_GOAL_REAL_E2E=1 to run provider-backed pi e2e",
+      timeout: timeout * REAL_E2E_REPEATS,
+    },
+    async (t) => {
+      await Promise.all(
+        Array.from({ length: REAL_E2E_REPEATS }, (_, index) => {
+          const attempt = index + 1;
+          return t.test(`run ${attempt}/${REAL_E2E_REPEATS}`, { timeout }, fn);
+        }),
+      );
+    },
+  );
+}
+
+realE2eTest(
+  "real pi RPC normal prompt does not call update_goal without an active goal",
+  120_000,
+  async () => {
+    const rpc = await spawnRpcSession();
+    try {
+      const response = await rpc.send({
+        type: "prompt",
+        message: [
+          "You are a task-local researcher for task286.",
+          "",
+          "Read only this run directory plus the utility paths listed in allowed_paths.txt.",
+          "Write only inside this run directory; candidates belong under candidates/.",
+          "Do not edit repo source, registries, global ledgers, submissions, CURRENT_STATE, or task records.",
+          "",
+          "Goal:",
+          "- Optimize this one task only.",
+          "- Run multiple local trials when practical; keep the best public-valid improvement.",
+          "- Prefer lower memory+params or higher points under the official utility.",
+          "- Preserve solver/rewrite code as the durable asset; ONNX is generated evidence.",
+          "- If no task files are available, report that the task is blocked instead of inventing results.",
+          "",
+          "Return by writing result.json matching result.schema.json with outcome, blockers, next hypothesis, and timing telemetry when available.",
+          "",
+          "Mode: optimize",
+        ].join("\n"),
+      });
+      assert.equal(response.success, true, response.error);
+
+      await rpc.waitFor(
+        "assistant response to non-goal prompt",
+        (event): event is JsonObject => assistantText(event) !== null,
+        90_000,
+      );
+
+      const updateGoalEvents = rpc.events.filter((event) => {
+        return event.type === "tool_execution_start" || event.type === "tool_execution_end"
+          ? event.toolName === "update_goal"
+          : false;
+      });
+      assert.deepEqual(updateGoalEvents, [], "update_goal must not be called without an active <goal> message");
+    } finally {
+      await rpc.close();
+    }
+  },
+);
+
+realE2eTest(
   "real pi RPC goal continuation lets queued user input win, then resumes the count",
-  { skip: REAL_E2E_ENABLED ? false : "set PI_GOAL_REAL_E2E=1 to run provider-backed pi e2e", timeout: 240_000 },
+  240_000,
   async () => {
     const rpc = await spawnRpcSession();
     try {
@@ -438,9 +506,9 @@ test(
   },
 );
 
-test(
+realE2eTest(
   "real pi headless prompt drains goal continuations until completion",
-  { skip: REAL_E2E_ENABLED ? false : "set PI_GOAL_REAL_E2E=1 to run provider-backed pi e2e", timeout: 180_000 },
+  180_000,
   async () => {
     const sessionRoot = await mkdtemp(path.join(tmpdir(), "pi-goal-headless-e2e-"));
     try {
@@ -505,9 +573,9 @@ test(
   },
 );
 
-test(
+realE2eTest(
   "real pi tmux interactive goal continuation hides goal ids in persisted prompts",
-  { skip: REAL_E2E_ENABLED ? false : "set PI_GOAL_REAL_E2E=1 to run provider-backed pi e2e", timeout: 180_000 },
+  180_000,
   async () => {
     const tmux = await runProcess("tmux", ["-V"], { allowFailure: true });
     if (tmux.code !== 0) {
