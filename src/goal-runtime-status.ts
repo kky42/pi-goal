@@ -5,13 +5,58 @@ import type { GoalRecoveryMachineState } from "./recovery-machine.js";
 import type { ThreadGoal } from "./types.js";
 
 export interface StatusContext {
-  ui: Pick<ExtensionContext["ui"], "setStatus">;
+  ui: Pick<ExtensionContext["ui"], "setStatus" | "theme">;
 }
 
 interface GoalRuntimeStatusDeps {
   getGoalForDisplay: () => ThreadGoal | null;
   getGoalStatus: () => ThreadGoal["status"] | null;
   getRecoveryAttention: () => GoalRecoveryMachineState["attention"];
+}
+
+type Theme = ExtensionContext["ui"]["theme"];
+
+type ThemeColor = Parameters<Theme["fg"]>[0];
+
+function themeFg(theme: Theme, color: ThemeColor, text: string): string {
+  const fg = (theme as { fg?: Theme["fg"] }).fg;
+  if (typeof fg !== "function") {
+    return text;
+  }
+  return fg.call(theme, color, text);
+}
+
+function formatThemedFooterStatus(
+  theme: Theme,
+  goal: ThreadGoal | null,
+  recoveryAttention: GoalRecoveryMachineState["attention"],
+): string | undefined {
+  const status = formatFooterStatus(goal, recoveryAttention);
+  if (!status) {
+    return undefined;
+  }
+
+  if (recoveryAttention) {
+    return themeFg(theme, "warning", status);
+  }
+
+  if (goal?.status === "active") {
+    const label = "Pursuing goal";
+    if (status.startsWith(`${label} (`)) {
+      return themeFg(theme, "accent", label) + themeFg(theme, "dim", status.slice(label.length));
+    }
+    return themeFg(theme, "accent", status);
+  }
+
+  if (goal?.status === "paused" || goal?.status === "blocked") {
+    return themeFg(theme, "warning", status);
+  }
+
+  if (goal?.status === "complete") {
+    return themeFg(theme, "success", status);
+  }
+
+  return status;
 }
 
 export function createGoalRuntimeStatus(deps: GoalRuntimeStatusDeps) {
@@ -34,7 +79,11 @@ export function createGoalRuntimeStatus(deps: GoalRuntimeStatusDeps) {
         }
         statusContext.ui.setStatus(
           "codex-goal",
-          formatFooterStatus(deps.getGoalForDisplay(), deps.getRecoveryAttention()),
+          formatThemedFooterStatus(
+            statusContext.ui.theme,
+            deps.getGoalForDisplay(),
+            deps.getRecoveryAttention(),
+          ),
         );
       }, 1_000);
       statusRefreshTimer.unref?.();
@@ -50,7 +99,7 @@ export function createGoalRuntimeStatus(deps: GoalRuntimeStatusDeps) {
     statusContext = ctx;
     ctx.ui.setStatus(
       "codex-goal",
-      formatFooterStatus(deps.getGoalForDisplay(), deps.getRecoveryAttention()),
+      formatThemedFooterStatus(ctx.ui.theme, deps.getGoalForDisplay(), deps.getRecoveryAttention()),
     );
     syncStatusRefresh();
   };

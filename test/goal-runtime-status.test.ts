@@ -4,6 +4,18 @@ import { mock, test } from "node:test";
 import { createGoalRuntimeStatus, type StatusContext } from "../src/goal-runtime-status.js";
 import type { ThreadGoal } from "../src/types.js";
 
+function identityTheme(): StatusContext["ui"]["theme"] {
+  return {
+    fg: (_color, text) => text,
+  } as StatusContext["ui"]["theme"];
+}
+
+function markerTheme(): StatusContext["ui"]["theme"] {
+  return {
+    fg: (color, text) => `<${String(color)}>${text}</${String(color)}>`,
+  } as StatusContext["ui"]["theme"];
+}
+
 function activeGoal(activeSeconds: number, status: ThreadGoal["status"] = "active"): ThreadGoal {
   return {
     goalId: "goal-1",
@@ -32,6 +44,7 @@ test("active footer refresh uses one 1s interval and stops when inactive", () =>
         setStatus(_key, status) {
           footerStatuses.push(status);
         },
+        theme: identityTheme(),
       },
     };
 
@@ -69,4 +82,52 @@ test("active footer refresh uses one 1s interval and stops when inactive", () =>
   } finally {
     mock.timers.reset();
   }
+});
+
+test("footer status uses semantic theme colors", () => {
+  const footerStatuses: Array<string | undefined> = [];
+  let goal: ThreadGoal | null = activeGoal(65);
+  let recoveryAttention: string | null = null;
+
+  const runtimeStatus = createGoalRuntimeStatus({
+    getGoalForDisplay: () => goal,
+    getGoalStatus: () => goal?.status ?? null,
+    getRecoveryAttention: () => recoveryAttention,
+  });
+  const ctx: StatusContext = {
+    ui: {
+      setStatus(_key, status) {
+        footerStatuses.push(status);
+      },
+      theme: markerTheme(),
+    },
+  };
+
+  runtimeStatus.refreshUi(ctx);
+  assert.equal(
+    footerStatuses.at(-1),
+    "<accent>Pursuing goal</accent><dim> (1m 5s)</dim>",
+  );
+
+  goal = activeGoal(65, "paused");
+  runtimeStatus.refreshUi(ctx);
+  assert.equal(footerStatuses.at(-1), "<warning>Goal paused (/goal resume)</warning>");
+
+  goal = activeGoal(65, "blocked");
+  runtimeStatus.refreshUi(ctx);
+  assert.equal(footerStatuses.at(-1), "<warning>Goal blocked (/goal resume)</warning>");
+
+  goal = activeGoal(65, "complete");
+  runtimeStatus.refreshUi(ctx);
+  assert.equal(footerStatuses.at(-1), "<success>Goal achieved</success>");
+
+  goal = activeGoal(65);
+  recoveryAttention = "Goal recovery pending (overflow); host retry in progress.";
+  runtimeStatus.refreshUi(ctx);
+  assert.equal(
+    footerStatuses.at(-1),
+    "<warning>Goal recovery pending (overflow); host retry in progress.</warning>",
+  );
+
+  runtimeStatus.stopStatusRefresh();
 });

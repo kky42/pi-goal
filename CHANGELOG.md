@@ -2,7 +2,10 @@
 
 ## Unreleased
 
+## 1.0.6 - 2026-06-12
+
 - Restores live elapsed active time in the `Pursuing goal` footer label and covers the 1s refresh timer against duplicate intervals; paused goals freeze elapsed time and resume from prior usage.
+- Colors the goal footer status with pi theme tokens: active labels use `accent`, elapsed time uses `dim`, paused/blocked/recovery statuses use `warning`, and completed goals use `success`.
 
 ## 1.0.5 - 2026-06-11
 
