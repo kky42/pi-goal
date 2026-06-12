@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 1.0.7 - 2026-06-12
+
+- Improves `/goal` command and subcommand descriptions so command help exposes `<objective>` usage and explains `pause`, `resume`, and `clear` completions.
+
 ## 1.0.6 - 2026-06-12
 
 - Restores live elapsed active time in the `Pursuing goal` footer label and covers the 1s refresh timer against duplicate intervals; paused goals freeze elapsed time and resume from prior usage.

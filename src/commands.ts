@@ -13,6 +13,13 @@ export interface CommandHost {
 }
 
 const COMMANDS = ["pause", "resume", "clear"] as const;
+const COMMAND_DESCRIPTIONS: Record<(typeof COMMANDS)[number], string> = {
+  pause: "Pause the current goal.",
+  resume: "Resume a paused or blocked goal.",
+  clear: "Clear the current goal.",
+};
+const GOAL_COMMAND_DESCRIPTION =
+  "Usage: /goal [<objective>|pause|resume|clear] — show, set, pause, resume, or clear a goal.";
 const GOLDEN_SET_BANNER = "\x1b[38;5;220mGoal set.\x1b[39m";
 
 export type GoalCommandPi = Pick<ExtensionAPI, "registerCommand">;
@@ -54,7 +61,7 @@ function completions(argumentPrefix: string) {
   const items = COMMANDS.filter((command) => command.startsWith(prefix)).map((command) => ({
     value: command,
     label: command,
-    description: `goal ${command}`,
+    description: COMMAND_DESCRIPTIONS[command],
   }));
   return items.length > 0 ? items : null;
 }
@@ -124,7 +131,7 @@ export async function handleGoalCommand(
 
 export function registerGoalCommand(pi: GoalCommandPi, host: CommandHost): void {
   pi.registerCommand("goal", {
-    description: "Show or manage the current Codex-style goal.",
+    description: GOAL_COMMAND_DESCRIPTION,
     getArgumentCompletions(argumentPrefix) {
       return completions(argumentPrefix);
     },

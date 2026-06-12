@@ -8,7 +8,7 @@ Pi-Goal brings Codex-style long-running goals to pi. It keeps a thread objective
 pi install npm:@kky42/pi-goal
 ```
 
-Use `/goal` from any pi session:
+Use `/goal [<objective>|pause|resume|clear]` from any pi session:
 
 ```text
 /goal
@@ -17,6 +17,14 @@ Use `/goal` from any pi session:
 /goal resume
 /goal clear
 ```
+
+Subcommands:
+
+- `/goal` shows the current goal.
+- `/goal <objective>` creates or replaces the active thread goal.
+- `/goal pause` pauses the current goal.
+- `/goal resume` resumes a paused or blocked goal.
+- `/goal clear` clears the current goal.
 
 `/goal <objective>` creates an active thread goal, shows `Goal set.`, and sends the agent a visible goal-wrapper message. The same wrapper is used for initial goal starts, resumes, and automatic continuations, so the UI shows the same goal contract that the agent receives. `update_goal` remains registered as the only goal tool, but its model-facing description tells agents to call it only while working inside an active `<goal>` message. The extension no longer adds always-on goal guidance to the system prompt or injects hidden active-goal context.
 

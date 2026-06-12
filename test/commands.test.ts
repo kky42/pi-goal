@@ -93,15 +93,22 @@ function createHarness() {
 test("/goal does not autocomplete subcommands for free-form objectives", () => {
   const harness = createHarness();
   const captured: {
+    description: string | null;
     getArgumentCompletions: ((argumentPrefix: string) => unknown) | null;
-  } = { getArgumentCompletions: null };
+  } = { description: null, getArgumentCompletions: null };
   const pi: GoalCommandPi = {
     registerCommand(_name, options) {
+      captured.description = options.description ?? null;
       captured.getArgumentCompletions = options.getArgumentCompletions ?? null;
     },
   };
 
   registerGoalCommand(pi, harness.host);
+
+  assert.equal(
+    captured.description,
+    "Usage: /goal [<objective>|pause|resume|clear] — show, set, pause, resume, or clear a goal.",
+  );
 
   const getArgumentCompletions = captured.getArgumentCompletions;
   assert.ok(getArgumentCompletions);
@@ -111,7 +118,7 @@ test("/goal does not autocomplete subcommands for free-form objectives", () => {
     {
       value: "pause",
       label: "pause",
-      description: "goal pause",
+      description: "Pause the current goal.",
     },
   ]);
 });
