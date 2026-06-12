@@ -73,7 +73,7 @@ test("repeated tool_execution_end events coalesce runtime persistence when usage
     }
 
     assert.equal(countGoalSetEntries(harness.entries, goalId), initialSetEntries);
-    assert.match(harness.footerStatuses.at(-1) ?? "", /Pursuing goal/);
+    assert.equal(harness.footerStatuses.at(-1), "Pursuing goal (10s)");
   } finally {
     Date.now = originalNow;
   }
@@ -130,6 +130,44 @@ test("session_shutdown flushes pending runtime usage", async () => {
     assert.equal(countGoalSetEntries(harness.entries, goalId), 2);
     const goal = harness.snapshot().goal;
     assert.equal(goal?.usage.activeSeconds, 4);
+  } finally {
+    Date.now = originalNow;
+  }
+});
+
+test("paused goals freeze elapsed time and resume from prior usage", async () => {
+  const originalNow = Date.now;
+  let now = 1_000;
+  Date.now = () => now;
+  try {
+    const harness = createRuntimeHarness();
+    await harness.runCommand("ship it");
+    await harness.emit("turn_start", { type: "turn_start", turnIndex: 0, timestamp: 1 });
+
+    now += 5_000;
+    await harness.runCommand("pause");
+    assert.equal(harness.snapshot().goal?.status, "paused");
+    assert.equal(harness.snapshot().goal?.usage.activeSeconds, 5);
+
+    now += 10_000;
+    assert.equal(harness.snapshot().goal?.usage.activeSeconds, 5);
+
+    await harness.runCommand("resume");
+    assert.equal(harness.snapshot().goal?.status, "active");
+    assert.equal(harness.snapshot().goal?.usage.activeSeconds, 5);
+    assert.equal(harness.footerStatuses.at(-1), "Pursuing goal (5s)");
+
+    await harness.emit("turn_start", { type: "turn_start", turnIndex: 1, timestamp: 2 });
+    now += 3_000;
+    await harness.emit("turn_end", {
+      type: "turn_end",
+      turnIndex: 1,
+      message: assistantMessage("stop", { input: 0, output: 0 }),
+      toolResults: [],
+    });
+
+    assert.equal(harness.snapshot().goal?.usage.activeSeconds, 8);
+    await harness.runCommand("clear");
   } finally {
     Date.now = originalNow;
   }

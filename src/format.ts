@@ -114,6 +114,9 @@ export function formatFooterStatus(goal: ThreadGoal | null, recoveryAttention: s
   }
 
   if (goal.status === "active") {
+    if (goal.usage.activeSeconds > 0) {
+      return `Pursuing goal (${formatDuration(goal.usage.activeSeconds)})`;
+    }
     return "Pursuing goal";
   }
 

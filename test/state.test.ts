@@ -115,7 +115,8 @@ test("formatters produce simplified goal summaries", () => {
   assert.equal(formatDuration(162_132), "45h 2m 12s");
   assert.match(formatLocalTimestamp(0), /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/);
   assert.equal(formatGoalSummary(created), "Status: active\nObjective: finish\nHint: /goal pause, /goal clear");
-  assert.equal(formatFooterStatus(used), "Pursuing goal");
+  assert.equal(formatFooterStatus(created), "Pursuing goal");
+  assert.equal(formatFooterStatus(used), "Pursuing goal (1m 5s)");
 });
 
 test("token formatting uses commas and compact abbreviations", () => {

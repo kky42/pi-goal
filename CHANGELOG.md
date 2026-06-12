@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Restores live elapsed active time in the `Pursuing goal` footer label and covers the 1s refresh timer against duplicate intervals; paused goals freeze elapsed time and resume from prior usage.
+
 ## 1.0.5 - 2026-06-11
 
 - Removes old continuation-marker parsing, superseded-continuation bookkeeping, provider-context rewrite shell, and compatibility prompt exports; queued goal work is identified by message metadata only.
