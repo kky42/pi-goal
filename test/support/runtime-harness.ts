@@ -111,6 +111,9 @@ export function createRuntimeHarness(options: {
     registerMessageRenderer() {
       unsupportedHarnessMethod("pi.registerMessageRenderer");
     },
+    registerEntryRenderer() {
+      unsupportedHarnessMethod("pi.registerEntryRenderer");
+    },
     registerProvider() {
       unsupportedHarnessMethod("pi.registerProvider");
     },
@@ -144,6 +147,7 @@ export function createRuntimeHarness(options: {
 
   const sessionManager: ExtensionCommandContext["sessionManager"] = {
     getBranch: () => entries,
+    buildContextEntries: () => entries,
     getCwd: () => "/tmp",
     getEntries: () => entries,
     getEntry: () => undefined,
@@ -201,7 +205,10 @@ export function createRuntimeHarness(options: {
     fork: async () => ({ cancelled: false }),
     getContextUsage: () => undefined,
     getSystemPrompt: () => "",
+    getSystemPromptOptions: () => ({ cwd: "/tmp" }),
     hasUI: true,
+    isProjectTrusted: () => true,
+    mode: "tui",
     compact(options) {
       const call: (typeof compactCalls)[number] = {};
       if (options?.customInstructions !== undefined) {
@@ -233,6 +240,7 @@ export function createRuntimeHarness(options: {
     isIdle: () => runtime.idle,
     model: undefined,
     modelRegistry: {} as ExtensionCommandContext["modelRegistry"],
+    scopedModels: [],
     navigateTree: async () => ({ cancelled: false }),
     newSession: async () => ({ cancelled: false }),
     reload: async () => {},
