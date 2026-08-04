@@ -1,6 +1,6 @@
 {
   "name": "@kky42/pi-goal",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "description": "Codex-style goal tracking and continuation for pi.",
   "type": "module",
   "author": "kky42",
