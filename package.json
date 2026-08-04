@@ -1,6 +1,6 @@
 {
   "name": "@kky42/pi-goal",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "Codex-style goal tracking and continuation for pi.",
   "type": "module",
   "author": "kky42",
@@ -37,7 +37,7 @@
   },
   "scripts": {
     "test": "node --import tsx --test test/*.test.ts",
-    "test:e2e:real": "PI_GOAL_REAL_E2E=1 node --import tsx --test test/real-e2e.test.ts",
+    "test:e2e": "node --import tsx --test test/e2e/*.test.ts",
     "typecheck": "tsc --noEmit",
     "verify": "npm run typecheck && npm test"
   },
@@ -60,6 +60,7 @@
   "devDependencies": {
     "@earendil-works/pi-ai": "0.83.0",
     "@earendil-works/pi-coding-agent": "0.83.0",
+    "@kky42/pi-flow": "2.2.2",
     "@types/node": "^25.9.1",
     "tsx": "^4.22.3",
     "typebox": "1.1.38",

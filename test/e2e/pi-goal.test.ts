@@ -7,14 +7,12 @@ import path from "node:path";
 import { test } from "node:test";
 import { setTimeout as sleep } from "node:timers/promises";
 
-const REAL_E2E_ENABLED = process.env.PI_GOAL_REAL_E2E === "1";
-const REAL_E2E_REPEATS = REAL_E2E_ENABLED
-  ? Math.max(1, Number.parseInt(process.env.PI_GOAL_REAL_E2E_REPEATS ?? "3", 10) || 3)
-  : 1;
 const MODEL = "deepseek/deepseek-v4-flash";
 const THINKING = "high";
 const EXTENSION_PATH = path.resolve("src/index.ts");
+const PI_FLOW_EXTENSION_PATH = path.resolve("node_modules/@kky42/pi-flow/index.ts");
 const CUSTOM_ENTRY_TYPE = "pi-codex-goal";
+const PI_FLOW_NOTIFICATION_TYPE = "pi-flow-task-notification";
 
 type JsonObject = Record<string, unknown>;
 
@@ -77,6 +75,23 @@ function assistantText(event: JsonObject): string | null {
   }
   const text = textFromMessage(event.message).trim();
   return text.length > 0 ? text : null;
+}
+
+function piFlowTerminalEnvelope(event: JsonObject): JsonObject | null {
+  if (event.type !== "message_end" || !isObject(event.message)) {
+    return null;
+  }
+  if (event.message.role !== "custom" || event.message.customType !== PI_FLOW_NOTIFICATION_TYPE) {
+    return null;
+  }
+  return isObject(event.message.details) ? event.message.details : null;
+}
+
+function toolExecutionDetails(event: JsonObject, toolName: string): JsonObject | null {
+  if (event.type !== "tool_execution_end" || event.toolName !== toolName || !isObject(event.result)) {
+    return null;
+  }
+  return isObject(event.result.details) ? event.result.details : null;
 }
 
 function goalWorkMessages(messages: unknown): JsonObject[] {
@@ -171,7 +186,7 @@ function sessionMessages(entries: JsonObject[]): JsonObject[] {
 }
 
 async function spawnRpcSession(): Promise<RpcSession> {
-  const sessionDir = await mkdtemp(path.join(tmpdir(), "pi-goal-real-e2e-"));
+  const sessionDir = await mkdtemp(path.join(tmpdir(), "pi-goal-e2e-"));
   const child = spawn(
     "pi",
     [
@@ -186,6 +201,8 @@ async function spawnRpcSession(): Promise<RpcSession> {
       "--no-extensions",
       "--extension",
       EXTENSION_PATH,
+      "--extension",
+      PI_FLOW_EXTENSION_PATH,
       "--no-skills",
       "--no-prompt-templates",
       "--no-themes",
@@ -315,25 +332,11 @@ function createRpcSession(child: ChildProcessWithoutNullStreams, sessionDir: str
   return { events, responses, sessionDir, send, waitFor, close };
 }
 
-function realE2eTest(name: string, timeout: number, fn: () => Promise<void>): void {
-  test(
-    name,
-    {
-      skip: REAL_E2E_ENABLED ? false : "set PI_GOAL_REAL_E2E=1 to run provider-backed pi e2e",
-      timeout: timeout * REAL_E2E_REPEATS,
-    },
-    async (t) => {
-      await Promise.all(
-        Array.from({ length: REAL_E2E_REPEATS }, (_, index) => {
-          const attempt = index + 1;
-          return t.test(`run ${attempt}/${REAL_E2E_REPEATS}`, { timeout }, fn);
-        }),
-      );
-    },
-  );
+function e2eTest(name: string, timeout: number, fn: () => Promise<void>): void {
+  test(name, { timeout }, fn);
 }
 
-realE2eTest(
+e2eTest(
   "real pi RPC normal prompt cannot update a goal without an active goal",
   120_000,
   async () => {
@@ -368,7 +371,73 @@ realE2eTest(
   },
 );
 
-realE2eTest(
+e2eTest(
+  "real pi RPC goal waits for a pi-flow Agent terminal notification",
+  240_000,
+  async () => {
+    const rpc = await spawnRpcSession();
+    try {
+      const response = await rpc.send({
+        type: "prompt",
+        message: [
+          "/goal Use the Agent tool exactly once with subagent_type general-purpose.",
+          "Ask the child to read package.json and return exactly PI_FLOW_CHILD_OK.",
+          "The accepted tool result is not completion. Wait for the matching terminal notification.",
+          "Only after the terminal notification contains PI_FLOW_CHILD_OK, call update_goal with status complete.",
+        ].join(" "),
+      });
+      assert.equal(response.success, true, response.error);
+
+      const terminalEvent = await rpc.waitFor(
+        "completed pi-flow Agent notification",
+        (event): event is JsonObject => {
+          const envelope = piFlowTerminalEnvelope(event);
+          return envelope?.task_type === "agent" && envelope.status === "completed";
+        },
+        180_000,
+      );
+      const terminal = piFlowTerminalEnvelope(terminalEvent);
+      assert.ok(terminal);
+      assert.match(String(terminal.content), /PI_FLOW_CHILD_OK/);
+
+      await rpc.waitFor(
+        "goal completion after pi-flow Agent notification",
+        (event): event is JsonObject =>
+          event.type === "tool_execution_end" &&
+          event.toolName === "update_goal" &&
+          event.isError === false,
+        90_000,
+      );
+
+      const acceptedIndex = rpc.events.findIndex((event) => {
+        const details = toolExecutionDetails(event, "Agent");
+        return details?.status === "accepted" && details.task_id === terminal.task_id;
+      });
+      const terminalIndex = rpc.events.indexOf(terminalEvent);
+      const completedIndex = rpc.events.findIndex(
+        (event) =>
+          event.type === "tool_execution_end" &&
+          event.toolName === "update_goal" &&
+          event.isError === false,
+      );
+      assert.ok(acceptedIndex >= 0, "Agent acceptance should be observable and correlated");
+      assert.ok(terminalIndex > acceptedIndex, "Agent terminal notification must follow acceptance");
+      assert.ok(completedIndex > terminalIndex, "goal completion must follow the Agent terminal notification");
+
+      const goalWorkEvents = rpc.events.filter((event) => {
+        if (event.type !== "message_end" || !isObject(event.message)) {
+          return false;
+        }
+        return event.message.role === "custom" && event.message.customType === CUSTOM_ENTRY_TYPE;
+      });
+      assert.equal(goalWorkEvents.length, 1, "pi-goal should not race the pending Agent with a continuation");
+    } finally {
+      await rpc.close();
+    }
+  },
+);
+
+e2eTest(
   "real pi RPC goal continuation lets queued user input win, then resumes the count",
   240_000,
   async () => {
@@ -494,7 +563,7 @@ realE2eTest(
   },
 );
 
-realE2eTest(
+e2eTest(
   "real pi headless prompt drains goal continuations until completion",
   180_000,
   async () => {
@@ -513,6 +582,8 @@ realE2eTest(
           "--no-extensions",
           "--extension",
           EXTENSION_PATH,
+          "--extension",
+          PI_FLOW_EXTENSION_PATH,
           "--no-skills",
           "--no-prompt-templates",
           "--no-themes",
@@ -561,7 +632,7 @@ realE2eTest(
   },
 );
 
-realE2eTest(
+e2eTest(
   "real pi tmux interactive goal continuation hides goal ids in persisted prompts",
   180_000,
   async () => {
@@ -586,6 +657,8 @@ realE2eTest(
       "--no-extensions",
       "--extension",
       EXTENSION_PATH,
+      "--extension",
+      PI_FLOW_EXTENSION_PATH,
       "--no-skills",
       "--no-prompt-templates",
       "--no-themes",

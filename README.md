@@ -46,6 +46,19 @@ If meaningful progress is impossible without user input or an external change, c
 </goal>
 ```
 
+## PiFlow compatibility
+
+Pi-Goal can run alongside [PiFlow](https://github.com/kky42/pi-flow). While an `Agent` or `workflow` task is pending, Pi-Goal suppresses its own automatic continuation. PiFlow's terminal notification gets the next turn, and normal goal continuation resumes only after every accepted background task has completed or failed.
+
+Install the packages independently:
+
+```sh
+pi install npm:@kky42/pi-goal
+pi install npm:@kky42/pi-flow
+```
+
+PiFlow is optional at runtime. This repository pins `@kky42/pi-flow` as a development dependency for joint integration and provider-backed E2E coverage.
+
 ## Pi-Goal vs. Codex Goal
 
 | Area | Pi-Goal | Codex Goal |
