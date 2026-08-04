@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { formatFooterStatus } from "../../src/format.js";
 import {
   HOST_OVERFLOW_RECOVERY_REASON,
-  recoveryAttentionMessage,
+  recoveryPausedAttentionMessage,
 } from "../../src/recovery.js";
 import { createThreadGoal, setEntry } from "../../src/state.js";
 import { CUSTOM_ENTRY_TYPE } from "../../src/types.js";
@@ -94,14 +94,14 @@ export async function emitPendingRecoveryShutdown(
   if (kind === "overflow") {
     assert.equal(
       harness.footerStatuses.at(-1),
-      formatFooterStatus(pausedGoal, recoveryAttentionMessage(HOST_OVERFLOW_RECOVERY_REASON)),
+      formatFooterStatus(pausedGoal, recoveryPausedAttentionMessage(HOST_OVERFLOW_RECOVERY_REASON)),
     );
   } else {
     assert.equal(
       harness.footerStatuses.at(-1),
       formatFooterStatus(
         pausedGoal,
-        recoveryAttentionMessage("provider error (websocket closed)"),
+        recoveryPausedAttentionMessage("provider error (websocket closed)"),
       ),
     );
   }

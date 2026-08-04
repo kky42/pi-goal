@@ -156,10 +156,7 @@ export function reconstructGoal(entries: Iterable<SessionEntryLike>): GoalSnapsh
     }
   }
 
-  return {
-    goal,
-    hasGoal: goal !== null,
-  };
+  return { goal };
 }
 
 export function reconstructHostOverflowCapNeedsUserReset(entries: Iterable<SessionEntryLike>): boolean {
@@ -178,29 +175,6 @@ export function reconstructHostOverflowCapNeedsUserReset(entries: Iterable<Sessi
   }
 
   return needsReset;
-}
-
-export function createGoal(current: ThreadGoal | null, objective: string): GoalResult {
-  if (current && current.status !== "complete") {
-    return {
-      ok: false,
-      message:
-        "cannot create a new goal because this thread already has a non-complete goal; use update_goal to mark it complete, /goal clear, or /goal <objective> to replace it",
-      goal: current,
-    };
-  }
-
-  const objectiveError = validateObjective(objective);
-  if (objectiveError) {
-    return { ok: false, message: objectiveError, goal: null };
-  }
-
-  const goal = createThreadGoal(objective);
-  return {
-    ok: true,
-    message: "Goal created.",
-    goal,
-  };
 }
 
 export function replaceGoal(objective: string): GoalResult {

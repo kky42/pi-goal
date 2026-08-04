@@ -22,7 +22,7 @@ export function createAgentEventHandlers(deps: GoalRuntimeAgentHandlerContext) {
       const abortedTurnTokens = abortedMessages.reduce((sum, message) => {
         return sum + assistantTurnTokens(message);
       }, 0);
-      goalAccounting.accountProgress(ctx, false, abortedTurnTokens, true);
+      goalAccounting.accountProgress(ctx, abortedTurnTokens);
       stateController.flushGoalPersistence("runtime");
       if (abortedMessages.length > 0) {
         stateController.pauseForAbort(ctx);

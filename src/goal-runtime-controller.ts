@@ -18,6 +18,7 @@ import {
   resetRecoveryMachine,
   setRecoveryPausedAttention,
 } from "./recovery-machine.js";
+import { registerPiFlowTaskCoordination } from "./pi-flow-task-coordination.js";
 import { goalWithLiveUsage } from "./state.js";
 import { registerGoalTools } from "./tools.js";
 import type { GoalContinuationKind, GoalEntrySource, GoalResult, ThreadGoal } from "./types.js";
@@ -61,8 +62,14 @@ export function createGoalRuntimeController(pi: ExtensionAPI): GoalRuntimeContro
     pi,
     getGoal: () => persistence.getGoal(),
     getRecoveryState: () => runtimeState.recoveryState,
+    pendingPiFlowTaskIds: runtimeState.pendingPiFlowTaskIds,
     staleQueuedWorkGuard: runtimeState.staleQueuedWorkGuard,
   });
+  registerPiFlowTaskCoordination(
+    pi,
+    runtimeState.pendingPiFlowTaskIds,
+    continuation.clearContinuationTimer,
+  );
 
   const stateController = createGoalStateController({
     pi,
@@ -123,7 +130,7 @@ export function createGoalRuntimeController(pi: ExtensionAPI): GoalRuntimeContro
     source: GoalEntrySource,
     ctx: ExtensionContext,
   ): GoalResult => {
-    goalAccounting.accountProgress(ctx, false, 0, true);
+    goalAccounting.accountProgress(ctx);
     return stateController.updateGoal(status, source, ctx);
   };
 

@@ -54,12 +54,7 @@ export interface GoalRuntimeContinuationPort {
 }
 
 export interface GoalAccountingPort {
-  accountProgress: (
-    ctx: ExtensionContext,
-    includeActiveElapsed: boolean,
-    completedTurnTokens: number,
-    forceFlush?: boolean,
-  ) => void;
+  accountProgress: (ctx: ExtensionContext, completedTurnTokens?: number) => void;
   beginAccounting: () => void;
 }
 
@@ -97,7 +92,6 @@ export interface GoalRuntimeTurnHandlerContext extends StaleQueuedWorkEffectCont
     GoalStateController,
     "beginOverflowRecovery" | "flushGoalPersistence" | "maybeFlushRuntimePersistence" | "pauseForAbort"
   >;
-  continuation: Pick<GoalRuntimeContinuationPort, never>;
   goalAccounting: GoalAccountingPort;
   recoveryRuntime: Pick<RecoveryRuntimePort, "finishSuccessfulAssistantTurn">;
 }
@@ -115,7 +109,10 @@ export interface GoalRuntimeAgentHandlerContext extends StaleQueuedWorkEffectCon
 }
 
 export interface GoalRuntimeSessionHandlerContext extends StaleQueuedWorkEffectContext {
-  runtimeState: Pick<GoalRuntimeState, "compactionInFlight" | "recoveryState" | "staleQueuedWorkGuard">;
+  runtimeState: Pick<
+    GoalRuntimeState,
+    "compactionInFlight" | "pendingPiFlowTaskIds" | "recoveryState" | "staleQueuedWorkGuard"
+  >;
   stateController: Pick<
     GoalStateController,
     "applyGoalTransition" | "flushGoalPersistence" | "getGoal" | "reloadFromSession" | "resumePausedGoal"

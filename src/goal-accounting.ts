@@ -74,12 +74,7 @@ export function createGoalAccounting(deps: GoalAccountingDeps) {
     accounting.lastAccountedAt = Date.now();
   };
 
-  const accountProgress = (
-    ctx: ExtensionContext,
-    _includeActiveElapsed: boolean,
-    completedTurnTokens = 0,
-    _forceFlush = false,
-  ): void => {
+  const accountProgress = (ctx: ExtensionContext, completedTurnTokens = 0): void => {
     const goal = deps.getGoal();
     const accounting = deps.getAccounting();
     if (!goal || accounting.activeGoalId !== goal.goalId || goal.status !== "active") {

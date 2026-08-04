@@ -6,10 +6,7 @@ import {
   createRuntimeHarness,
   emitProviderContext,
   emitQueuedTurnThroughContext,
-  goalUserContextMessage,
-  providerContextMessageAt,
   queuedCustomMessage,
-  requireProviderContextResult,
 } from "./support/runtime-harness.js";
 import { CUSTOM_ENTRY_TYPE } from "../src/types.js";
 

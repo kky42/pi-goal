@@ -7,15 +7,14 @@ import goalExtension, { __testHooks } from "../../src/index.js";
 import { isContextOverflowError } from "../../src/recovery.js";
 import { isGoalCustomEntry, reconstructGoal } from "../../src/state.js";
 import {
-  toQueuedGoalContextCarrier,
   type ActiveGoalQueuedDetails,
   type QueuedGoalContextCarrier,
   type QueuedGoalContextInput,
-  type QueuedGoalUserContent,
 } from "../../src/queued-goal-messages.js";
 import { CUSTOM_ENTRY_TYPE } from "../../src/types.js";
 
 type EventHandler = (event: object, ctx: ExtensionContext) => unknown | Promise<unknown>;
+type QueuedGoalUserContent = Array<{ readonly type: "text"; readonly text: string }>;
 
 function unsupportedHarnessMethod(name: string): never {
   throw new Error(`${name} is not implemented in this test harness.`);
@@ -40,6 +39,7 @@ export function createRuntimeHarness(options: {
 } = {}) {
   const entries: ReturnType<ExtensionCommandContext["sessionManager"]["getBranch"]> = [];
   const handlers = new Map<string, EventHandler[]>();
+  const eventBusHandlers = new Map<string, Set<(data: unknown) => void>>();
   const sentMessages: SentMessage[] = [];
   const sentUserMessages: SentUserMessage[] = [];
   const tools = new Map<string, (params: Record<string, unknown>) => Promise<unknown>>();
@@ -89,11 +89,18 @@ export function createRuntimeHarness(options: {
       });
     },
     events: {
-      emit() {
-        unsupportedHarnessMethod("pi.events.emit");
+      emit(channel, data) {
+        for (const handler of [...(eventBusHandlers.get(channel) ?? [])]) {
+          handler(data);
+        }
       },
-      on() {
-        unsupportedHarnessMethod("pi.events.on");
+      on(channel, handler) {
+        const channelHandlers = eventBusHandlers.get(channel) ?? new Set();
+        channelHandlers.add(handler);
+        eventBusHandlers.set(channel, channelHandlers);
+        return () => {
+          channelHandlers.delete(handler);
+        };
       },
     },
     exec: async () => ({ stdout: "", stderr: "", code: 0, killed: false }),
@@ -264,6 +271,7 @@ export function createRuntimeHarness(options: {
 
   function reloadExtension(): void {
     handlers.clear();
+    eventBusHandlers.clear();
     goalExtension(pi);
   }
 
@@ -305,6 +313,9 @@ export function createRuntimeHarness(options: {
     compactCalls,
     footerStatuses,
     emit,
+    emitPiEvent(channel: string, data: unknown) {
+      pi.events.emit(channel, data);
+    },
     entries,
     runCommand,
     runTool,
@@ -420,6 +431,13 @@ export interface ProviderContextResult {
 }
 
 export type ProviderContextHandlerResult = ProviderContextResult | undefined;
+
+function toQueuedGoalContextCarrier(message: QueuedGoalContextInput): QueuedGoalContextCarrier | null {
+  if (typeof message.timestamp !== "number") {
+    return null;
+  }
+  return { ...message, timestamp: message.timestamp };
+}
 
 function parseProviderContextHandlerResult(result: unknown): ProviderContextHandlerResult {
   if (result === undefined) {

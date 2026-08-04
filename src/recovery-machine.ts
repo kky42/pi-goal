@@ -22,9 +22,8 @@ import {
   type ErrorRecoveryCounters,
 } from "./recovery.js";
 
-export type { GoalStartTurnStrategy, RecoveryPhase } from "./recovery-phase.js";
+export type { RecoveryPhase } from "./recovery-phase.js";
 export {
-  goalStartTurnStrategy,
   recoveryPhaseBlocksContinuation,
   recoveryPhaseNeedsUserStartTurn,
 } from "./recovery-phase.js";
@@ -189,9 +188,4 @@ export function planRecoveryForAssistantError(
 
 export function planRecoveryForSilentContextOverflow(state: GoalRecoveryMachineState): RecoveryAction {
   return incrementOverflowCompactionAttempts(state);
-}
-
-/** True when another overflow in this recovery cycle would exceed the compaction cap. */
-export function isRepeatOverflowCompactionDue(state: GoalRecoveryMachineState): boolean {
-  return state.counters.compactionAttempts >= MAX_CONTEXT_COMPACTION_RETRIES;
 }

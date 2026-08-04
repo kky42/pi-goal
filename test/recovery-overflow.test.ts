@@ -4,7 +4,7 @@ import { test } from "node:test";
 import { formatFooterStatus } from "../src/format.js";
 import {
   HOST_OVERFLOW_RECOVERY_REASON,
-  recoveryAttentionMessage,
+  recoveryPausedAttentionMessage,
   recoveryPendingAttentionMessage,
 } from "../src/recovery.js";
 import {
@@ -210,7 +210,7 @@ test("overflow after compaction and intervening transient error pauses with reco
     harness.footerStatuses.at(-1),
     formatFooterStatus(
       { ...goal, status: "paused" },
-      recoveryAttentionMessage("context window recovery failed after repeated compaction attempts"),
+      recoveryPausedAttentionMessage("context window recovery failed after repeated compaction attempts"),
     ),
   );
 });
@@ -333,7 +333,7 @@ test("exhausted context overflow retries show recoverable attention in footer", 
     harness.footerStatuses.at(-1),
     formatFooterStatus(
       { ...goal, status: "paused" },
-      recoveryAttentionMessage("context window recovery failed after repeated compaction attempts"),
+      recoveryPausedAttentionMessage("context window recovery failed after repeated compaction attempts"),
     ),
   );
 });

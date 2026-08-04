@@ -50,7 +50,6 @@ export interface GoalResult {
 
 export interface GoalSnapshot {
 	goal: ThreadGoal | null;
-	hasGoal: boolean;
 }
 
 export interface SessionEntryLike {

@@ -4,7 +4,6 @@ import { test } from "node:test";
 import {
   assistantMessage,
   createRuntimeHarness,
-  emitProviderContext,
   emitQueuedTurnThroughContext,
   goalUserContextMessage,
   queuedCustomMessage,

@@ -26,6 +26,7 @@ export function createSessionEventHandlers(deps: GoalRuntimeSessionHandlerContex
 
   return {
     onSessionStart: (async (event, ctx) => {
+      runtimeState.pendingPiFlowTaskIds.clear();
       stateController.reloadFromSession(ctx);
       goalAccounting.beginAccounting();
       const goal = stateController.getGoal();
@@ -66,7 +67,7 @@ export function createSessionEventHandlers(deps: GoalRuntimeSessionHandlerContex
         return;
       }
 
-      goalAccounting.accountProgress(ctx, false, 0, true);
+      goalAccounting.accountProgress(ctx);
       stateController.flushGoalPersistence("runtime");
     }) satisfies ExtensionHandler<SessionBeforeCompactEvent>,
 
@@ -86,9 +87,10 @@ export function createSessionEventHandlers(deps: GoalRuntimeSessionHandlerContex
 
     onSessionShutdown: (async (_event, ctx) => {
       runtimeState.compactionInFlight = false;
+      runtimeState.pendingPiFlowTaskIds.clear();
       applyStaleQueuedWorkEffects(runtimeState.staleQueuedWorkGuard.planSessionShutdown().effects, ctx, deps);
 
-      goalAccounting.accountProgress(ctx, false, 0, true);
+      goalAccounting.accountProgress(ctx);
       stateController.flushGoalPersistence("runtime");
       continuation.clearContinuationTimer();
       if (hasPendingRecoveryAttention(deps)) {

@@ -28,7 +28,7 @@ export function createTurnEventHandlers(deps: GoalRuntimeTurnHandlerContext) {
         return;
       }
 
-      goalAccounting.accountProgress(ctx, true, 0, true);
+      goalAccounting.accountProgress(ctx);
       stateController.maybeFlushRuntimePersistence("runtime");
     }) satisfies ExtensionHandler<ToolExecutionEndEvent>,
 
@@ -44,7 +44,7 @@ export function createTurnEventHandlers(deps: GoalRuntimeTurnHandlerContext) {
       }
 
       const completedTurnTokens = assistantTurnTokens(event.message);
-      goalAccounting.accountProgress(ctx, true, completedTurnTokens);
+      goalAccounting.accountProgress(ctx, completedTurnTokens);
       stateController.flushGoalPersistence("runtime");
       if (isAbortedAssistantMessage(event.message)) {
         stateController.pauseForAbort(ctx);

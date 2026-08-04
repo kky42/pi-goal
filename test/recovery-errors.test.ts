@@ -4,7 +4,7 @@ import { test } from "node:test";
 import { formatFooterStatus } from "../src/format.js";
 import {
   HOST_OVERFLOW_RECOVERY_REASON,
-  recoveryAttentionMessage,
+  recoveryPausedAttentionMessage,
   recoveryPendingAttentionMessage,
 } from "../src/recovery.js";
 import {
@@ -32,7 +32,7 @@ test("non-retryable provider errors pause active goals immediately", async () =>
     harness.footerStatuses.at(-1),
     formatFooterStatus(
       harness.snapshot().goal,
-      recoveryAttentionMessage("non-retryable provider error (invalid tool call state: malformed function arguments)"),
+      recoveryPausedAttentionMessage("non-retryable provider error (invalid tool call state: malformed function arguments)"),
     ),
   );
 });
@@ -50,7 +50,7 @@ test("terminal provider-limit 429 errors pause active goals immediately", async 
     harness.footerStatuses.at(-1),
     formatFooterStatus(
       harness.snapshot().goal,
-      recoveryAttentionMessage("non-retryable provider error (insufficient_quota 429)"),
+      recoveryPausedAttentionMessage("non-retryable provider error (insufficient_quota 429)"),
     ),
   );
   assert.doesNotMatch(harness.footerStatuses.at(-1) ?? "", /Goal recovery pending/);

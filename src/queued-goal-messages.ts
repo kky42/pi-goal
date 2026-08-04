@@ -7,14 +7,6 @@ export interface ActiveGoalQueuedDetails {
   goalId: string;
 }
 
-export interface QueuedGoalTextPart {
-  readonly type: "text";
-  readonly text: string;
-}
-
-export type QueuedGoalUserContent = QueuedGoalTextPart[];
-
-/** External provider-context message shape before normalization. */
 export interface QueuedGoalContextInput {
   role: string;
   customType?: string;
@@ -24,124 +16,14 @@ export interface QueuedGoalContextInput {
   timestamp?: number;
 }
 
-/** Normalized provider-context carrier with required runtime fields. */
-export interface QueuedGoalContextCarrier {
-  role: string;
+export interface QueuedGoalContextCarrier extends QueuedGoalContextInput {
   timestamp: number;
-  customType?: string;
-  content?: unknown;
-  display?: boolean;
-  details?: unknown;
-}
-
-export interface QueuedGoalCustomMessage extends QueuedGoalContextCarrier {
-  role: "custom";
-  customType: typeof CUSTOM_ENTRY_TYPE;
-  content: string | QueuedGoalUserContent;
-  display: boolean;
-}
-
-export interface QueuedGoalUserMessage extends QueuedGoalContextCarrier {
-  role: "user";
-  content: QueuedGoalUserContent;
-}
-
-export type QueuedGoalWorkSourceMessage = QueuedGoalCustomMessage | QueuedGoalUserMessage;
-
-/** Role/customType only — does not prove normalized content or display. */
-interface QueuedGoalCustomRoleCarrier {
-  role: "custom";
-  customType: typeof CUSTOM_ENTRY_TYPE;
 }
 
 function isQueuedGoalCustomRole(
-  message: QueuedGoalContextCarrier,
-): message is QueuedGoalContextCarrier & QueuedGoalCustomRoleCarrier {
+  message: QueuedGoalContextInput,
+): message is QueuedGoalContextInput & { role: "custom"; customType: typeof CUSTOM_ENTRY_TYPE } {
   return message.role === "custom" && message.customType === CUSTOM_ENTRY_TYPE;
-}
-
-export function userContentFromUnknown(content: unknown): QueuedGoalUserContent {
-  if (!Array.isArray(content)) {
-    return [];
-  }
-
-  const parts: QueuedGoalTextPart[] = [];
-  for (const part of content) {
-    if (part === null || typeof part !== "object") {
-      continue;
-    }
-    const candidate = part as { type?: unknown; text?: unknown };
-    if (candidate.type === "text" && typeof candidate.text === "string") {
-      parts.push({ type: "text", text: candidate.text });
-    }
-  }
-  return parts;
-}
-
-function customContentFromUnknown(content: unknown): string | QueuedGoalUserContent {
-  if (typeof content === "string") {
-    return content;
-  }
-
-  const normalized = userContentFromUnknown(content);
-  return normalized.length > 0 ? normalized : "";
-}
-
-/** Copies provider-context fields into a carrier with the runtime-required timestamp. */
-export function toQueuedGoalContextCarrier(message: QueuedGoalContextInput): QueuedGoalContextCarrier | null {
-  if (typeof message.timestamp !== "number") {
-    return null;
-  }
-
-  const carrier: QueuedGoalContextCarrier = {
-    role: message.role,
-    timestamp: message.timestamp,
-  };
-  if (message.customType !== undefined) {
-    carrier.customType = message.customType;
-  }
-  if (message.content !== undefined) {
-    carrier.content = message.content;
-  }
-  if (message.display !== undefined) {
-    carrier.display = message.display;
-  }
-  if (message.details !== undefined) {
-    carrier.details = message.details;
-  }
-  return carrier;
-}
-
-/** Narrows a carrier to queued-goal user/custom work and normalizes its content. */
-export function toQueuedGoalWorkSource(
-  message: QueuedGoalContextCarrier,
-): QueuedGoalWorkSourceMessage | null {
-  switch (message.role) {
-    case "user":
-      return {
-        ...message,
-        role: "user",
-        content: userContentFromUnknown(message.content),
-      };
-    case "custom": {
-      if (!isQueuedGoalCustomRole(message)) {
-        return null;
-      }
-      const normalized: QueuedGoalCustomMessage = {
-        role: "custom",
-        customType: message.customType,
-        timestamp: message.timestamp,
-        content: customContentFromUnknown(message.content),
-        display: message.display ?? false,
-      };
-      if (message.details !== undefined) {
-        normalized.details = message.details;
-      }
-      return normalized;
-    }
-    default:
-      return null;
-  }
 }
 
 export function isActiveGoalQueuedDetails(details: unknown): details is ActiveGoalQueuedDetails {
@@ -157,7 +39,7 @@ export function isActiveGoalQueuedDetails(details: unknown): details is ActiveGo
   );
 }
 
-export function isCommandResumeQueuedGoalMessage(message: QueuedGoalContextCarrier): boolean {
+export function isCommandResumeQueuedGoalMessage(message: QueuedGoalContextInput): boolean {
   return (
     isQueuedGoalCustomRole(message) &&
     isActiveGoalQueuedDetails(message.details) &&
