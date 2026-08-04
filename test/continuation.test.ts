@@ -353,6 +353,57 @@ test("auto-queued continuations use the Codex-style objective prompt without vis
   assert.match(content, /update_goal/);
 });
 
+for (const outcome of ["cancelled", "failed"] as const) {
+  test(`headless goal drain exits after ${outcome} compaction settles and the goal completes`, async () => {
+    const harness = createRuntimeHarness();
+    harness.setHasUI(false);
+    harness.setWaitForIdle(async () => {
+      if (harness.waitForIdleCalls === 1) {
+        await harness.emit("session_before_compact", { type: "session_before_compact" });
+        await harness.runTool("update_goal", { status: "complete" });
+        return;
+      }
+
+      // Prevent the pre-fix implementation from hanging the test process forever.
+      await harness.emit("session_compact", { type: "session_compact" });
+    });
+
+    await harness.runCommand(`finish after compaction ${outcome}`);
+
+    assert.equal(harness.snapshot().goal?.status, "complete");
+    assert.equal(harness.waitForIdleCalls, 1);
+  });
+}
+
+test("headless goal drain preserves successful compaction continuation", async () => {
+  const harness = createRuntimeHarness();
+  harness.setHasUI(false);
+  harness.setWaitForIdle(async () => {
+    if (harness.waitForIdleCalls === 1) {
+      const initial = harness.sentMessages[0];
+      assert.ok(initial);
+      const initialMessage = queuedCustomMessage(initial);
+      await harness.emit("before_agent_start", {
+        type: "before_agent_start",
+        prompt: String(initial.message.content),
+        systemPrompt: "",
+        systemPromptOptions: {},
+      });
+      await harness.emit("message_start", { type: "message_start", message: initialMessage });
+      await harness.emit("session_before_compact", { type: "session_before_compact" });
+      await harness.emit("session_compact", { type: "session_compact" });
+      return;
+    }
+    await harness.runTool("update_goal", { status: "complete" });
+  });
+
+  await harness.runCommand("finish after successful compaction");
+
+  assert.equal(harness.snapshot().goal?.status, "complete");
+  assert.equal(harness.waitForIdleCalls, 2);
+  assert.equal(harness.sentMessages.length, 2);
+});
+
 test("session compaction queues continuation for active goals after length stops", async () => {
   const harness = createRuntimeHarness();
   await harness.runCommand("ship it");

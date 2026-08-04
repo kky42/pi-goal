@@ -27,7 +27,6 @@ export interface GoalRuntimeController extends GoalRuntimeEventHandlers {
   getGoalForDisplay(): ThreadGoal | null;
   setGoal(goal: ThreadGoal, source: GoalEntrySource, ctx: ExtensionContext): void;
   clearGoal(source: GoalEntrySource, ctx: ExtensionContext): void;
-  hasPendingPostTurnWork(): boolean;
   updateGoal(status: "complete" | "blocked", source: GoalEntrySource, ctx: ExtensionContext): GoalResult;
   requestContinuation(ctx: ExtensionContext, kind?: GoalContinuationKind): boolean;
 }
@@ -142,9 +141,6 @@ export function createGoalRuntimeController(pi: ExtensionAPI): GoalRuntimeContro
     clearGoal(source, ctx) {
       stateController.applyGoalTransition({ kind: "clear", source }, ctx);
     },
-    hasPendingPostTurnWork() {
-      return runtimeState.compactionInFlight;
-    },
     updateGoal,
     requestContinuation: continuation.requestContinuation,
     ...eventHandlers,
@@ -161,7 +157,6 @@ export function registerGoalRuntimeController(pi: ExtensionAPI): GoalRuntimeCont
     getGoal: () => controller.getGoalForDisplay(),
     setGoal: controller.setGoal.bind(controller),
     clearGoal: controller.clearGoal.bind(controller),
-    hasPendingPostTurnWork: () => controller.hasPendingPostTurnWork(),
     requestContinuation: controller.requestContinuation.bind(controller),
   });
   registerGoalRuntimeEvents(pi, controller);

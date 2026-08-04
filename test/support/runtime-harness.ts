@@ -62,6 +62,8 @@ export function createRuntimeHarness(options: {
     hostOverflowRecoveryAttempted: false,
   };
   let commandHandler: ((args: string, ctx: ExtensionCommandContext) => void | Promise<void>) | null = null;
+  let waitForIdleHandler: (() => void | Promise<void>) | null = null;
+  let waitForIdleCalls = 0;
   let ctx: ExtensionCommandContext;
   let entryIndex = 0;
 
@@ -256,7 +258,10 @@ export function createRuntimeHarness(options: {
     signal: undefined,
     switchSession: async () => ({ cancelled: false }),
     ui,
-    waitForIdle: async () => {},
+    waitForIdle: async () => {
+      waitForIdleCalls += 1;
+      await waitForIdleHandler?.();
+    },
   } satisfies ExtensionCommandContext;
 
   if (options.contextWindow !== undefined) {
@@ -323,8 +328,18 @@ export function createRuntimeHarness(options: {
     reloadSession,
     sentMessages,
     sentUserMessages,
+    setHasUI(hasUI: boolean) {
+      ctx.hasUI = hasUI;
+      ctx.mode = hasUI ? "tui" : "print";
+    },
     setIdle(idle: boolean) {
       runtime.idle = idle;
+    },
+    setWaitForIdle(handler: (() => void | Promise<void>) | null) {
+      waitForIdleHandler = handler;
+    },
+    get waitForIdleCalls() {
+      return waitForIdleCalls;
     },
     setPendingMessages(pendingMessages: boolean) {
       runtime.pendingMessages = pendingMessages;

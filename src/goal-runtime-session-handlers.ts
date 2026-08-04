@@ -56,7 +56,6 @@ export function createSessionEventHandlers(deps: GoalRuntimeSessionHandlerContex
     }) satisfies ExtensionHandler<SessionTreeEvent>,
 
     onSessionBeforeCompact: (async (_event, ctx) => {
-      runtimeState.compactionInFlight = true;
       if (
         runStaleQueuedWorkPlan(
           runtimeState.staleQueuedWorkGuard.planSessionBeforeCompact(),
@@ -72,7 +71,6 @@ export function createSessionEventHandlers(deps: GoalRuntimeSessionHandlerContex
     }) satisfies ExtensionHandler<SessionBeforeCompactEvent>,
 
     onSessionCompact: (async (_event, ctx) => {
-      runtimeState.compactionInFlight = false;
       if (runStaleQueuedWorkPlan(runtimeState.staleQueuedWorkGuard.planSessionCompact(), ctx, deps)) {
         return;
       }
@@ -86,7 +84,6 @@ export function createSessionEventHandlers(deps: GoalRuntimeSessionHandlerContex
     }) satisfies ExtensionHandler<SessionCompactEvent>,
 
     onSessionShutdown: (async (_event, ctx) => {
-      runtimeState.compactionInFlight = false;
       runtimeState.pendingPiFlowTaskIds.clear();
       applyStaleQueuedWorkEffects(runtimeState.staleQueuedWorkGuard.planSessionShutdown().effects, ctx, deps);
 

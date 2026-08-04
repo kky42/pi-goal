@@ -111,7 +111,7 @@ export interface GoalRuntimeAgentHandlerContext extends StaleQueuedWorkEffectCon
 export interface GoalRuntimeSessionHandlerContext extends StaleQueuedWorkEffectContext {
   runtimeState: Pick<
     GoalRuntimeState,
-    "compactionInFlight" | "pendingPiFlowTaskIds" | "recoveryState" | "staleQueuedWorkGuard"
+    "pendingPiFlowTaskIds" | "recoveryState" | "staleQueuedWorkGuard"
   >;
   stateController: Pick<
     GoalStateController,

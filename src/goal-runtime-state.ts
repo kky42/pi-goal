@@ -9,7 +9,6 @@ export interface GoalRuntimeState {
   accounting: AccountingState;
   recoveryState: GoalRecoveryMachineState;
   currentTurnIndex: number | null;
-  compactionInFlight: boolean;
   pendingPiFlowTaskIds: Set<string>;
   staleQueuedWorkGuard: StaleQueuedWorkGuard;
 }
@@ -19,7 +18,6 @@ export function createGoalRuntimeState(): GoalRuntimeState {
     accounting: createAccountingState(),
     recoveryState: createGoalRecoveryMachine(),
     currentTurnIndex: null,
-    compactionInFlight: false,
     pendingPiFlowTaskIds: new Set(),
     staleQueuedWorkGuard: createStaleQueuedWorkGuard(),
   };
