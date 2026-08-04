@@ -185,19 +185,20 @@ function configureResponses(
         }
         return fauxAssistantMessage("JOINT_OK");
       }
-      const toolName = taskType === "agent" ? "Agent" : "workflow";
+      const toolName = taskType === "agent" ? "run_agent" : "run_workflow";
       if (!serialized.includes(`"toolName":"${toolName}"`)) {
         assert.ok(tools.includes(toolName));
         const toolCall = taskType === "agent"
-          ? fauxToolCall("Agent", {
-              description: "expected integration failure",
+          ? fauxToolCall("run_agent", {
+              label: "expected integration failure",
               prompt: "Do not launch.",
-              subagent_type: "missing-joint-test-profile",
+              profile: "missing-joint-test-profile",
             })
-          : fauxToolCall("workflow", {
+          : fauxToolCall("run_workflow", {
+              name: "joint_workflow",
               script: [
                 "export const meta = { name: 'joint_workflow', description: 'Joint compatibility workflow' };",
-                "const result = await agent('Do not launch.', { subagent_type: 'missing-joint-test-profile' });",
+                "const result = await run_agent('Do not launch.', { label: 'expected integration failure', profile: 'missing-joint-test-profile' });",
                 "return { result };",
               ].join("\n"),
             });
@@ -219,8 +220,8 @@ for (const scenario of [
     const joint = await createJointSession(extensionPaths);
     try {
       assert.ok(joint.session.getToolDefinition("update_goal"));
-      assert.ok(joint.session.getToolDefinition("Agent"));
-      assert.ok(joint.session.getToolDefinition("workflow"));
+      assert.ok(joint.session.getToolDefinition("run_agent"));
+      assert.ok(joint.session.getToolDefinition("run_workflow"));
       configureResponses(joint.faux, scenario.taskType);
 
       await joint.session.prompt(
@@ -238,7 +239,7 @@ for (const scenario of [
       );
 
       const messages = joint.session.messages as Message[];
-      const acceptedTool = scenario.taskType === "agent" ? "Agent" : "workflow";
+      const acceptedTool = scenario.taskType === "agent" ? "run_agent" : "run_workflow";
       const accepted = messages.findIndex(
         (message) => message.role === "toolResult" && message.toolName === acceptedTool,
       );

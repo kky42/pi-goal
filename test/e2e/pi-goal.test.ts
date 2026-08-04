@@ -351,7 +351,7 @@ e2eTest(
           "- Explain why concise test fixtures are easier to maintain.",
         ].join("\n"),
       });
-      assert.equal(response.success, true, response.error);
+      assert.equal(response.success, true, response.error ?? "RPC request failed.");
 
       await rpc.waitFor(
         "assistant response to non-goal prompt",
@@ -372,7 +372,7 @@ e2eTest(
 );
 
 e2eTest(
-  "real pi RPC goal waits for a pi-flow Agent terminal notification",
+  "real pi RPC goal waits for a pi-flow run_agent terminal notification",
   240_000,
   async () => {
     const rpc = await spawnRpcSession();
@@ -380,16 +380,16 @@ e2eTest(
       const response = await rpc.send({
         type: "prompt",
         message: [
-          "/goal Use the Agent tool exactly once with subagent_type general-purpose.",
+          "/goal Use the run_agent tool exactly once with profile general-purpose and label read-package.",
           "Ask the child to read package.json and return exactly PI_FLOW_CHILD_OK.",
           "The accepted tool result is not completion. Wait for the matching terminal notification.",
           "Only after the terminal notification contains PI_FLOW_CHILD_OK, call update_goal with status complete.",
         ].join(" "),
       });
-      assert.equal(response.success, true, response.error);
+      assert.equal(response.success, true, response.error ?? "RPC request failed.");
 
       const terminalEvent = await rpc.waitFor(
-        "completed pi-flow Agent notification",
+        "completed pi-flow run_agent notification",
         (event): event is JsonObject => {
           const envelope = piFlowTerminalEnvelope(event);
           return envelope?.task_type === "agent" && envelope.status === "completed";
@@ -401,7 +401,7 @@ e2eTest(
       assert.match(String(terminal.content), /PI_FLOW_CHILD_OK/);
 
       await rpc.waitFor(
-        "goal completion after pi-flow Agent notification",
+        "goal completion after pi-flow run_agent notification",
         (event): event is JsonObject =>
           event.type === "tool_execution_end" &&
           event.toolName === "update_goal" &&
@@ -410,7 +410,7 @@ e2eTest(
       );
 
       const acceptedIndex = rpc.events.findIndex((event) => {
-        const details = toolExecutionDetails(event, "Agent");
+        const details = toolExecutionDetails(event, "run_agent");
         return details?.status === "accepted" && details.task_id === terminal.task_id;
       });
       const terminalIndex = rpc.events.indexOf(terminalEvent);
@@ -420,9 +420,9 @@ e2eTest(
           event.toolName === "update_goal" &&
           event.isError === false,
       );
-      assert.ok(acceptedIndex >= 0, "Agent acceptance should be observable and correlated");
-      assert.ok(terminalIndex > acceptedIndex, "Agent terminal notification must follow acceptance");
-      assert.ok(completedIndex > terminalIndex, "goal completion must follow the Agent terminal notification");
+      assert.ok(acceptedIndex >= 0, "run_agent acceptance should be observable and correlated");
+      assert.ok(terminalIndex > acceptedIndex, "run_agent terminal notification must follow acceptance");
+      assert.ok(completedIndex > terminalIndex, "goal completion must follow the run_agent terminal notification");
 
       const goalWorkEvents = rpc.events.filter((event) => {
         if (event.type !== "message_end" || !isObject(event.message)) {
@@ -430,7 +430,7 @@ e2eTest(
         }
         return event.message.role === "custom" && event.message.customType === CUSTOM_ENTRY_TYPE;
       });
-      assert.equal(goalWorkEvents.length, 1, "pi-goal should not race the pending Agent with a continuation");
+      assert.equal(goalWorkEvents.length, 1, "pi-goal should not race the pending run_agent with a continuation");
     } finally {
       await rpc.close();
     }
@@ -444,7 +444,7 @@ e2eTest(
     const rpc = await spawnRpcSession();
     try {
       const stateResponse = await rpc.send({ type: "get_state" });
-      assert.equal(stateResponse.success, true, stateResponse.error);
+      assert.equal(stateResponse.success, true, stateResponse.error ?? "RPC request failed.");
       const state = stateResponse.data;
       assert.ok(isObject(state));
       assert.ok(isObject(state.model));
@@ -486,7 +486,7 @@ e2eTest(
         message:
           "/goal Count visibly from 1 to 10. Each assistant turn must contain exactly one visible number, starting with 1 and increasing by 1. Do not combine numbers. After emitting a number less than 10, stop. When you have emitted 10, call update_goal with status \"complete\".",
       });
-      assert.equal(goalResponse.success, true, goalResponse.error);
+      assert.equal(goalResponse.success, true, goalResponse.error ?? "RPC request failed.");
 
       await firstNumberSeen;
       assert.ok(
@@ -494,7 +494,7 @@ e2eTest(
         "queued user message should be sent while the first continuation is still running",
       );
       const queuedResponse = await queuedUserResponse.promise;
-      assert.equal(queuedResponse.success, true, queuedResponse.error);
+      assert.equal(queuedResponse.success, true, queuedResponse.error ?? "RPC request failed.");
 
       await rpc.waitFor(
         "queued user message response",
@@ -524,7 +524,7 @@ e2eTest(
       );
 
       const messagesResponse = await rpc.send({ type: "get_messages" });
-      assert.equal(messagesResponse.success, true, messagesResponse.error);
+      assert.equal(messagesResponse.success, true, messagesResponse.error ?? "RPC request failed.");
       assert.ok(isObject(messagesResponse.data));
       const providerMessages = messagesResponse.data.messages;
       const continuations = goalWorkMessages(providerMessages);

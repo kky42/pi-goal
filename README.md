@@ -48,7 +48,7 @@ If meaningful progress is impossible without user input or an external change, c
 
 ## PiFlow compatibility
 
-Pi-Goal can run alongside [PiFlow](https://github.com/kky42/pi-flow). While an `Agent` or `workflow` task is pending, Pi-Goal suppresses its own automatic continuation. PiFlow's terminal notification gets the next turn, and normal goal continuation resumes only after every accepted background task has completed or failed.
+Pi-Goal can run alongside [PiFlow](https://github.com/kky42/pi-flow). While a `run_agent` or `run_workflow` task is pending, Pi-Goal suppresses its own automatic continuation. PiFlow's terminal notification gets the next turn, and normal goal continuation resumes only after every accepted background task has completed or failed.
 
 Install the packages independently:
 
