@@ -22,7 +22,6 @@ import {
 } from "@earendil-works/pi-coding-agent";
 
 const GOAL_TYPE = "pi-codex-goal";
-const FLOW_NOTIFICATION_TYPE = "pi-flow-task-notification";
 
 type Message = Record<string, any>;
 
@@ -49,19 +48,19 @@ function textFromMessage(message: Message): string {
     .join("");
 }
 
-function hasTerminalTaskNotification(context: Context): boolean {
+function hasTerminalTaskEnvelope(context: Context, taskType: "agent" | "workflow"): boolean {
+  const toolName = taskType === "agent" ? "run_agent" : "run_workflow";
   return (context.messages as Message[]).some((message) => {
+    if (message.role !== "toolResult" || message.toolName !== toolName) {
+      return false;
+    }
     try {
       const value = JSON.parse(textFromMessage(message)) as {
-        task_id?: unknown;
         task_type?: unknown;
         status?: unknown;
       };
-      return (
-        typeof value.task_id === "string" &&
-        (value.task_type === "agent" || value.task_type === "workflow") &&
-        (value.status === "completed" || value.status === "failed")
-      );
+      return value.task_type === taskType &&
+        (value.status === "completed" || value.status === "failed");
     } catch {
       return false;
     }
@@ -119,7 +118,7 @@ async function createJointSession(extensionPaths: string[]) {
     streamSimple: (selectedModel, context, options) =>
       models.streamSimple(selectedModel, context, options),
   });
-  await modelRuntime.setRuntimeApiKey(model.provider, "test-key", { allowNetwork: false });
+  await modelRuntime.setRuntimeApiKey(model.provider, "test-key");
 
   const settingsManager = SettingsManager.inMemory({});
   const sessionManager = SessionManager.inMemory(cwd);
@@ -176,7 +175,7 @@ function configureResponses(
       if (!serialized.includes("<goal>")) {
         return fauxAssistantMessage("Bootstrap complete.");
       }
-      if (hasTerminalTaskNotification(context)) {
+      if (hasTerminalTaskEnvelope(context, taskType)) {
         if (!serialized.includes('"toolName":"update_goal"')) {
           return fauxAssistantMessage(
             [fauxToolCall("update_goal", { status: "complete" })],
@@ -204,7 +203,7 @@ function configureResponses(
             });
         return fauxAssistantMessage([toolCall], { stopReason: "toolUse" });
       }
-      return fauxAssistantMessage("Waiting for the terminal task notification.");
+      assert.fail("the run tool result must carry the terminal task envelope");
     }),
   );
 }
@@ -213,7 +212,7 @@ for (const scenario of [
   { taskType: "agent" as const, order: "goal-first" as const },
   { taskType: "workflow" as const, order: "flow-first" as const },
 ]) {
-  test(`pi-goal coordinates real pi-flow ${scenario.taskType} lifecycle events when loaded ${scenario.order}`, async () => {
+  test(`pi-goal completes after a synchronous pi-flow ${scenario.taskType} tool result when loaded ${scenario.order}`, async () => {
     const goalPath = path.resolve("src/index.ts");
     const flowPath = path.resolve("node_modules/@kky42/pi-flow/index.ts");
     const extensionPaths = scenario.order === "goal-first" ? [goalPath, flowPath] : [flowPath, goalPath];
@@ -225,7 +224,7 @@ for (const scenario of [
       configureResponses(joint.faux, scenario.taskType);
 
       await joint.session.prompt(
-        `/goal Launch one background ${scenario.taskType}, wait for its terminal notification, then complete.`,
+        `/goal Launch one ${scenario.taskType}, wait for its terminal result, then complete.`,
       );
       if (joint.session.messages.length === 0) {
         await joint.session.prompt("Begin the active goal.");
@@ -235,23 +234,22 @@ for (const scenario of [
           joint.session.messages.some(
             (message: Message) => message.role === "toolResult" && message.toolName === "update_goal",
           ),
-        "goal completion after the pi-flow terminal notification",
+        "goal completion after the pi-flow tool result",
       );
 
       const messages = joint.session.messages as Message[];
-      const acceptedTool = scenario.taskType === "agent" ? "run_agent" : "run_workflow";
-      const accepted = messages.findIndex(
-        (message) => message.role === "toolResult" && message.toolName === acceptedTool,
+      const executedTool = scenario.taskType === "agent" ? "run_agent" : "run_workflow";
+      const executed = messages.findIndex(
+        (message) => message.role === "toolResult" && message.toolName === executedTool,
       );
-      const terminal = messages.findIndex(
-        (message) => message.role === "custom" && message.customType === FLOW_NOTIFICATION_TYPE,
+      assert.ok(
+        hasTerminalTaskEnvelope({ messages } as Context, scenario.taskType),
+        "the run tool result must carry the terminal task envelope",
       );
       const completed = messages.findIndex(
         (message) => message.role === "toolResult" && message.toolName === "update_goal",
       );
-      assert.ok(accepted >= 0);
-      assert.ok(terminal > accepted);
-      assert.ok(completed > terminal);
+      assert.ok(completed > executed, "goal completion must follow the pi-flow tool result");
 
       const goalWork = messages.filter(
         (message) => message.role === "custom" && message.customType === GOAL_TYPE,

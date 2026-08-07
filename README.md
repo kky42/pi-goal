@@ -10,23 +10,13 @@ pi install npm:@kky42/pi-goal
 
 Use `/goal [<objective>|pause|resume|clear]` from any pi session:
 
-```text
-/goal
-/goal Build the requested feature and verify it end to end
-/goal pause
-/goal resume
-/goal clear
-```
-
-Subcommands:
-
 - `/goal` shows the current goal.
-- `/goal <objective>` creates or replaces the active thread goal.
+- `/goal <objective>` creates or replaces the active thread goal and sends the agent a visible goal-wrapper message.
 - `/goal pause` pauses the current goal.
 - `/goal resume` resumes a paused or blocked goal.
 - `/goal clear` clears the current goal.
 
-`/goal <objective>` creates an active thread goal, shows `Goal set.`, and sends the agent a visible goal-wrapper message. The same wrapper is used for initial goal starts, resumes, and automatic continuations, so the UI shows the same goal contract that the agent receives. `update_goal` remains registered as the only goal tool, but its model-facing description tells agents to call it only while working inside an active `<goal>` message. The extension no longer adds always-on goal guidance to the system prompt or injects hidden active-goal context.
+`update_goal` is the only goal tool; the same goal wrapper is used for starts, resumes, and continuations.
 
 Model-facing wrapper shape:
 
@@ -37,27 +27,10 @@ Model-facing wrapper shape:
 </objective>
 <instructions>
 You are working on this active goal.
-Keep making concrete progress toward the objective when low-risk next steps are available.
-Do not redefine success around a smaller or easier task.
-Before declaring success, verify the objective against current evidence.
-When the objective is fully achieved and no required work remains, call update_goal with {"status":"complete"}.
-If meaningful progress is impossible without user input or an external change, call update_goal with {"status":"blocked"}.
+...
 </instructions>
 </goal>
 ```
-
-## PiFlow compatibility
-
-Pi-Goal can run alongside [PiFlow](https://github.com/kky42/pi-flow). While a `run_agent` or `run_workflow` task is pending, Pi-Goal suppresses its own automatic continuation. PiFlow's terminal notification gets the next turn, and normal goal continuation resumes only after every accepted background task has completed or failed.
-
-Install the packages independently:
-
-```sh
-pi install npm:@kky42/pi-goal
-pi install npm:@kky42/pi-flow
-```
-
-PiFlow is optional at runtime. This repository pins `@kky42/pi-flow` as a development dependency for joint integration and provider-backed E2E coverage.
 
 ## Pi-Goal vs. Codex Goal
 

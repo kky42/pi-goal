@@ -26,7 +26,6 @@ export function createSessionEventHandlers(deps: GoalRuntimeSessionHandlerContex
 
   return {
     onSessionStart: (async (event, ctx) => {
-      runtimeState.pendingPiFlowTaskIds.clear();
       stateController.reloadFromSession(ctx);
       goalAccounting.beginAccounting();
       const goal = stateController.getGoal();
@@ -84,7 +83,6 @@ export function createSessionEventHandlers(deps: GoalRuntimeSessionHandlerContex
     }) satisfies ExtensionHandler<SessionCompactEvent>,
 
     onSessionShutdown: (async (_event, ctx) => {
-      runtimeState.pendingPiFlowTaskIds.clear();
       applyStaleQueuedWorkEffects(runtimeState.staleQueuedWorkGuard.planSessionShutdown().effects, ctx, deps);
 
       goalAccounting.accountProgress(ctx);

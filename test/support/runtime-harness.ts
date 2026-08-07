@@ -120,6 +120,9 @@ export function createRuntimeHarness(options: {
     registerMessageRenderer() {
       unsupportedHarnessMethod("pi.registerMessageRenderer");
     },
+    registerMarkdownTransformer() {
+      unsupportedHarnessMethod("pi.registerMarkdownTransformer");
+    },
     registerEntryRenderer() {
       unsupportedHarnessMethod("pi.registerEntryRenderer");
     },
@@ -318,9 +321,6 @@ export function createRuntimeHarness(options: {
     compactCalls,
     footerStatuses,
     emit,
-    emitPiEvent(channel: string, data: unknown) {
-      pi.events.emit(channel, data);
-    },
     entries,
     runCommand,
     runTool,

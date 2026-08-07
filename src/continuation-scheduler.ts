@@ -14,7 +14,6 @@ interface ContinuationSchedulerDeps {
   pi: Pick<ExtensionAPI, "sendMessage">;
   getGoal: () => ThreadGoal | null;
   getRecoveryState: () => GoalRecoveryMachineState;
-  pendingPiFlowTaskIds: Set<string>;
   staleQueuedWorkGuard: StaleQueuedWorkGuard;
 }
 
@@ -70,7 +69,6 @@ export function createContinuationScheduler(deps: ContinuationSchedulerDeps) {
   const requestContinuation = (ctx: ExtensionContext, kind: GoalContinuationKind = "continuation"): boolean => {
     const goal = deps.getGoal();
     if (
-      deps.pendingPiFlowTaskIds.size > 0 ||
       deps.staleQueuedWorkGuard.isBlockingContinuation() ||
       !goal ||
       goal.status !== "active" ||
@@ -109,7 +107,6 @@ export function createContinuationScheduler(deps: ContinuationSchedulerDeps) {
     clearContinuationTimer();
     const currentGoal = deps.getGoal();
     if (
-      deps.pendingPiFlowTaskIds.size > 0 ||
       deps.staleQueuedWorkGuard.isBlockingContinuation() ||
       !ctx.isIdle() ||
       ctx.hasPendingMessages() ||
