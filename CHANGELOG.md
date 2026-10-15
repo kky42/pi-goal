@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 1.0.11 - 2026-10-15
+
+- Fixes `update_goal` on pi >= 1.2: `ctx.ui.theme` is a proxy there whose property reads throw in headless/RPC sessions; the goal footer now falls back to plain text instead of failing the tool call.
+- Verifies the extension end to end on pi 1.2.0 (245 unit tests, 5 e2e scenarios) and updates the dev harness for the 1.2 extension API (tool declarations in transcript system messages, new `ExtensionAPI` members, `deepseek-flash` rename).
+
 ## 1.0.7 - 2026-06-12
 
 - Improves `/goal` command and subcommand descriptions so command help exposes `<objective>` usage and explains `pause`, `resume`, and `clear` completions.
