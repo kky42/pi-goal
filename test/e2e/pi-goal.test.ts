@@ -683,6 +683,8 @@ e2eTest(
 
       let sessionFile: string | null = null;
       let finalEntries: JsonObject[] = [];
+      let sawReply = false;
+      let sawComplete = false;
       for (let attempt = 0; attempt < 90; attempt += 1) {
         await sleep(1_000);
         const files = await findSessionFiles(sessionRoot);
@@ -696,22 +698,36 @@ e2eTest(
           .filter((message) => message.role === "assistant")
           .map((message) => textFromMessage(message).trim())
           .filter(Boolean);
-        const completed = finalEntries.some((entry) => {
-          return (
-            entry.type === "custom" &&
-            entry.customType === CUSTOM_ENTRY_TYPE &&
-            isObject(entry.data) &&
-            entry.data.kind === "set" &&
-            isObject(entry.data.goal) &&
-            entry.data.goal.status === "complete"
-          );
-        });
-        if (texts.includes("1") && completed) {
+        sawReply = sawReply || texts.includes("1");
+        sawComplete =
+          sawComplete ||
+          finalEntries.some((entry) => {
+            return (
+              entry.type === "custom" &&
+              entry.customType === CUSTOM_ENTRY_TYPE &&
+              isObject(entry.data) &&
+              entry.data.kind === "set" &&
+              isObject(entry.data.goal) &&
+              entry.data.goal.status === "complete"
+            );
+          });
+        if (sawReply && sawComplete) {
           break;
         }
       }
 
       assert.ok(sessionFile, "tmux interactive run should create a persisted session");
+      if (!(sawReply && sawComplete)) {
+        // Fail with the terminal state instead of a confusing downstream pane mismatch.
+        const debugPane = await runProcess(
+          "tmux",
+          ["capture-pane", "-p", "-t", sessionName, "-S", "-180"],
+          { allowFailure: true },
+        );
+        assert.fail(
+          `tmux goal did not complete within 90s (assistant replied 1: ${sawReply}, goal complete: ${sawComplete}). Pane:\n${debugPane.stdout}`,
+        );
+      }
       const messages = sessionMessages(finalEntries);
       const continuations = goalWorkMessages(messages);
       assert.ok(continuations.length >= 1);
