@@ -171,7 +171,10 @@ function configureResponses(
   faux.setResponses(
     Array.from({ length: 16 }, () => (context: Context) => {
       const serialized = JSON.stringify(context.messages);
-      const tools = (context.tools ?? []).map((tool) => tool.name);
+      // pi >= 1.2 declares tools in transcript system messages; context.tools is no longer populated.
+      const declaredTools = (context.messages as Message[])
+        .filter((message) => message.role === "system")
+        .map((message) => JSON.stringify(message));
       if (!serialized.includes("<goal>")) {
         return fauxAssistantMessage("Bootstrap complete.");
       }
@@ -186,7 +189,10 @@ function configureResponses(
       }
       const toolName = taskType === "agent" ? "run_agent" : "run_workflow";
       if (!serialized.includes(`"toolName":"${toolName}"`)) {
-        assert.ok(tools.includes(toolName));
+        assert.ok(
+          declaredTools.some((declared) => declared.includes(`"${toolName}"`)),
+          `expected ${toolName} declared to the model`,
+        );
         const toolCall = taskType === "agent"
           ? fauxToolCall("run_agent", {
               label: "expected integration failure",

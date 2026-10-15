@@ -7,7 +7,7 @@ import path from "node:path";
 import { test } from "node:test";
 import { setTimeout as sleep } from "node:timers/promises";
 
-const MODEL = "deepseek/deepseek-v4-flash";
+const MODEL = "deepseek/deepseek-flash"; // pi >= 1.2 renamed deepseek-v4-flash
 const THINKING = "high";
 const EXTENSION_PATH = path.resolve("src/index.ts");
 const PI_FLOW_EXTENSION_PATH = path.resolve("node_modules/@kky42/pi-flow/index.ts");
@@ -442,7 +442,7 @@ e2eTest(
       assert.ok(isObject(state));
       assert.ok(isObject(state.model));
       assert.equal(state.model.provider, "deepseek");
-      assert.equal(state.model.id, "deepseek-v4-flash");
+      assert.equal(state.model.id, "deepseek-flash"); // pi >= 1.2 renamed deepseek-v4-flash
       assert.equal(state.thinkingLevel, THINKING);
       if (typeof state.sessionFile !== "string") {
         assert.fail("Expected RPC state to include a sessionFile path.");

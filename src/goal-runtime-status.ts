@@ -18,8 +18,17 @@ type Theme = ExtensionContext["ui"]["theme"];
 
 type ThemeColor = Parameters<Theme["fg"]>[0];
 
-function themeFg(theme: Theme, color: ThemeColor, text: string): string {
-  const fg = (theme as { fg?: Theme["fg"] }).fg;
+/**
+ * pi >= 1.2 exposes `ctx.ui.theme` as a proxy whose property reads throw when
+ * no theme was initialized (headless/RPC sessions), so every read must be guarded.
+ */
+function themeFg(theme: Theme | undefined, color: ThemeColor, text: string): string {
+  let fg: unknown;
+  try {
+    fg = (theme as { fg?: Theme["fg"] } | undefined)?.fg;
+  } catch {
+    return text;
+  }
   if (typeof fg !== "function") {
     return text;
   }
@@ -27,7 +36,7 @@ function themeFg(theme: Theme, color: ThemeColor, text: string): string {
 }
 
 function formatThemedFooterStatus(
-  theme: Theme,
+  theme: Theme | undefined,
   goal: ThreadGoal | null,
   recoveryAttention: GoalRecoveryMachineState["attention"],
 ): string | undefined {

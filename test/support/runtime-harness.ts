@@ -110,6 +110,23 @@ export function createRuntimeHarness(options: {
     getAllTools: () => [],
     getCommands: () => [],
     getFlag: () => undefined,
+    getSettings: () => ({}) as ExtensionAPI["getSettings"] extends () => infer S ? S : never,
+    getMcpServers: () => [],
+    registerMcpServer() {
+      unsupportedHarnessMethod("pi.registerMcpServer");
+    },
+    unregisterMcpServer() {
+      unsupportedHarnessMethod("pi.unregisterMcpServer");
+    },
+    unregisterVirtualModel() {
+      unsupportedHarnessMethod("pi.unregisterVirtualModel");
+    },
+    registerVirtualModel() {
+      unsupportedHarnessMethod("pi.registerVirtualModel");
+    },
+    registerToolRenderer() {
+      unsupportedHarnessMethod("pi.registerToolRenderer");
+    },
     getSessionName: () => undefined,
     getThinkingLevel: () => "medium",
     on,
@@ -131,7 +148,9 @@ export function createRuntimeHarness(options: {
     },
     registerShortcut() {},
     registerTool(tool) {
-      tools.set(tool.name, (params) => tool.execute("tool-call", params as never, undefined, undefined, ctx));
+      tools.set(tool.name, (params) =>
+        tool.execute("tool-call", params as never, undefined, undefined, ctx as never),
+      );
     },
     sendMessage(message, options) {
       sentMessages.push({ message, options });
@@ -160,6 +179,8 @@ export function createRuntimeHarness(options: {
   const sessionManager: ExtensionCommandContext["sessionManager"] = {
     getBranch: () => entries,
     buildContextEntries: () => entries,
+    buildSessionProjection: () =>
+      ({ entries, messages: [], thinkingLevel: "medium", model: null }) as never,
     getCwd: () => "/tmp",
     getEntries: () => entries,
     getEntry: () => undefined,
